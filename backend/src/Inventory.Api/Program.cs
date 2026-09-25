@@ -14,6 +14,7 @@ using Inventory.Persistence;
 using Inventory.Persistence.Interceptors;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -104,6 +105,15 @@ builder.Services.AddSwaggerGen(c =>
 var app = builder.Build();
 
 // ---------- Pipeline ----------
+// Sau reverse proxy (nginx / Caddy): lấy IP + scheme thật từ X-Forwarded-* — trước ApiLogging để log đúng IP.
+if (app.Configuration.GetValue("ForwardedHeaders:Enabled", false))
+{
+    var forwarded = new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto };
+    forwarded.KnownIPNetworks.Clear(); // tin proxy trong mạng docker nội bộ; API không mở cổng ra ngoài
+    forwarded.KnownProxies.Clear();
+    app.UseForwardedHeaders(forwarded);
+}
+
 app.UseApiLogging();            // ngoài cùng → ghi được cả response lỗi do exception handler sinh ra
 app.UseExceptionHandler();
 app.UseStatusCodePages();       // 401/403/404 rỗng → ProblemDetails

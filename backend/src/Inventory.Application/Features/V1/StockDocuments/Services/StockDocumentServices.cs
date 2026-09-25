@@ -160,7 +160,7 @@ public sealed class StockDocumentReader(IUnitOfWork<InventoryDbContext> unitOfWo
                 Warehouse = new RefDto(d.Warehouse.Id, d.Warehouse.Name),
                 ToWarehouse = d.ToWarehouse == null ? null : new RefDto(d.ToWarehouse.Id, d.ToWarehouse.Name),
                 Supplier = d.Supplier == null ? null : new RefDto(d.Supplier.Id, d.Supplier.Name),
-                d.Reason, d.Note, d.CreatedDate, d.CreatedName, d.PostedAt, d.PostedByName, d.RowVersion
+                d.Reason, d.Note, d.CreatedDate, d.CreatedById, d.CreatedName, d.PostedAt, d.PostedByName, d.RowVersion
             })
             .FirstOrDefaultAsync(ct) ?? throw new NotFoundException("StockDocument", id);
 
@@ -173,7 +173,7 @@ public sealed class StockDocumentReader(IUnitOfWork<InventoryDbContext> unitOfWo
             .ToListAsync(ct);
 
         return new StockDocumentDto(header.Id, header.Code, header.Type, header.Status, header.Warehouse, header.ToWarehouse,
-            header.Supplier, header.Reason, header.Note, header.CreatedDate, header.CreatedName, header.PostedAt,
+            header.Supplier, header.Reason, header.Note, header.CreatedDate, header.CreatedById, header.CreatedName, header.PostedAt,
             header.PostedByName, Convert.ToBase64String(header.RowVersion ?? []), lines);
     }
 }

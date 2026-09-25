@@ -1,5 +1,12 @@
 import { api, cleanParams } from '@/lib/api-client';
-import type { CreateDocumentRequest, PagedResult, StockDocumentDto, StockDocumentListItemDto, StockDocumentsQuery } from '@/types';
+import type {
+  CreateDocumentRequest,
+  PagedResult,
+  StockDocumentDto,
+  StockDocumentListItemDto,
+  StockDocumentsQuery,
+  UpdateDocumentRequest,
+} from '@/types';
 import type { DocumentTypeConfig } from '../config';
 
 export const documentsApi = {
@@ -11,6 +18,8 @@ export const documentsApi = {
     api
       .post<StockDocumentDto>(`/${cfg.path}`, body, { headers: { 'Idempotency-Key': idempotencyKey } })
       .then((r) => r.data),
+  update: (cfg: DocumentTypeConfig, id: number, body: UpdateDocumentRequest) =>
+    api.put<StockDocumentDto>(`/${cfg.path}/${id}`, body).then((r) => r.data),
   post: (cfg: DocumentTypeConfig, id: number, rowVersion: string) =>
     api.post<StockDocumentDto>(`/${cfg.path}/${id}/post`, { rowVersion }).then((r) => r.data),
   cancel: (cfg: DocumentTypeConfig, id: number, rowVersion: string) =>

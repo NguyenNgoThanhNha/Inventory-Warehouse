@@ -12,6 +12,7 @@ using Inventory.Application.Features.V1.StockDocuments.Commands.CreateGoodsRecei
 using Inventory.Application.Features.V1.StockDocuments.Commands.CreateStockTake;
 using Inventory.Application.Features.V1.StockDocuments.Commands.CreateTransfer;
 using Inventory.Application.Features.V1.StockDocuments.Commands.PostStockDocument;
+using Inventory.Application.Features.V1.StockDocuments.Commands.UpdateStockDocument;
 using Inventory.Application.Features.V1.StockDocuments.DTOs;
 using Inventory.Application.Features.V1.StockDocuments.Queries;
 using Inventory.Domain.Constants;
@@ -67,6 +68,12 @@ public sealed class GoodsReceiptsController(ISender mediator) : ApiControllerBas
         [FromHeader(Name = ConstHeader.IdempotencyKey)] string? idempotencyKey, CancellationToken ct) =>
         StatusCode(StatusCodes.Status201Created, await Mediator.Send(command with { IdempotencyKey = idempotencyKey }, ct));
 
+    /// <summary>Sửa phiếu nháp. Cần quyền lập phiếu; chỉ chủ phiếu hoặc người có quyền duyệt (kiểm tra trong handler).</summary>
+    [HttpPut("{id:int}")]
+    [HasPermission(ConstActivity.GoodsReceipt, ActivityType.Create)]
+    public async Task<ActionResult<StockDocumentDto>> Update(int id, UpdateStockDocumentCommand command, CancellationToken ct) =>
+        Ok(await Mediator.Send(command with { Id = id, Type = Type }, ct));
+
     [HttpPost("{id:int}/post")]
     [HasPermission(ConstActivity.GoodsReceipt, ActivityType.Update)]
     public async Task<ActionResult<StockDocumentDto>> Post(int id, PostStockDocumentCommand command, CancellationToken ct) =>
@@ -98,6 +105,12 @@ public sealed class GoodsIssuesController(ISender mediator) : ApiControllerBase(
     public async Task<ActionResult<StockDocumentDto>> Create(CreateGoodsIssueCommand command,
         [FromHeader(Name = ConstHeader.IdempotencyKey)] string? idempotencyKey, CancellationToken ct) =>
         StatusCode(StatusCodes.Status201Created, await Mediator.Send(command with { IdempotencyKey = idempotencyKey }, ct));
+
+    /// <summary>Sửa phiếu nháp. Cần quyền lập phiếu; chỉ chủ phiếu hoặc người có quyền duyệt (kiểm tra trong handler).</summary>
+    [HttpPut("{id:int}")]
+    [HasPermission(ConstActivity.GoodsIssue, ActivityType.Create)]
+    public async Task<ActionResult<StockDocumentDto>> Update(int id, UpdateStockDocumentCommand command, CancellationToken ct) =>
+        Ok(await Mediator.Send(command with { Id = id, Type = Type }, ct));
 
     [HttpPost("{id:int}/post")]
     [HasPermission(ConstActivity.GoodsIssue, ActivityType.Update)]
@@ -131,6 +144,12 @@ public sealed class TransfersController(ISender mediator) : ApiControllerBase(me
         [FromHeader(Name = ConstHeader.IdempotencyKey)] string? idempotencyKey, CancellationToken ct) =>
         StatusCode(StatusCodes.Status201Created, await Mediator.Send(command with { IdempotencyKey = idempotencyKey }, ct));
 
+    /// <summary>Sửa phiếu nháp. Cần quyền lập phiếu; chỉ chủ phiếu hoặc người có quyền duyệt (kiểm tra trong handler).</summary>
+    [HttpPut("{id:int}")]
+    [HasPermission(ConstActivity.Transfer, ActivityType.Create)]
+    public async Task<ActionResult<StockDocumentDto>> Update(int id, UpdateStockDocumentCommand command, CancellationToken ct) =>
+        Ok(await Mediator.Send(command with { Id = id, Type = Type }, ct));
+
     [HttpPost("{id:int}/post")]
     [HasPermission(ConstActivity.Transfer, ActivityType.Update)]
     public async Task<ActionResult<StockDocumentDto>> Post(int id, PostStockDocumentCommand command, CancellationToken ct) =>
@@ -162,6 +181,12 @@ public sealed class StockTakesController(ISender mediator) : ApiControllerBase(m
     public async Task<ActionResult<StockDocumentDto>> Create(CreateStockTakeCommand command,
         [FromHeader(Name = ConstHeader.IdempotencyKey)] string? idempotencyKey, CancellationToken ct) =>
         StatusCode(StatusCodes.Status201Created, await Mediator.Send(command with { IdempotencyKey = idempotencyKey }, ct));
+
+    /// <summary>Sửa phiếu nháp. Cần quyền lập phiếu; chỉ chủ phiếu hoặc người có quyền duyệt (kiểm tra trong handler).</summary>
+    [HttpPut("{id:int}")]
+    [HasPermission(ConstActivity.StockTake, ActivityType.Create)]
+    public async Task<ActionResult<StockDocumentDto>> Update(int id, UpdateStockDocumentCommand command, CancellationToken ct) =>
+        Ok(await Mediator.Send(command with { Id = id, Type = Type }, ct));
 
     [HttpPost("{id:int}/post")]
     [HasPermission(ConstActivity.StockTake, ActivityType.Update)]

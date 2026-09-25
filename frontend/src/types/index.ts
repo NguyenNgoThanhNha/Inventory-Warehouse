@@ -366,6 +366,7 @@ export interface StockDocumentDto {
   reason: IssueReason | null;
   note: string | null;
   createdDate: string;
+  createdById: string | null;
   createdName: string | null;
   postedAt: string | null;
   postedByName: string | null;
@@ -537,4 +538,15 @@ export interface ScanLowStockResultDto {
   resolved: number;
   stillOpen: number;
   notified: number;
+}
+
+/** Body of PUT /{documents}/{id} (edit a draft; fields not used by the type are ignored). */
+export interface UpdateDocumentRequest {
+  rowVersion: string;
+  warehouseId: number;
+  toWarehouseId?: number | null;
+  supplierId?: number | null;
+  reason?: IssueReason | null;
+  note?: string | null;
+  lines: DocumentLineInput[];
 }

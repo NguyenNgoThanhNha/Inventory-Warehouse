@@ -16,33 +16,37 @@ import { useAvailableStock } from '@/features/stock';
 import { applyFieldErrors, getProblem, getStatus, showError } from '@/lib/api-errors';
 import { formatQty } from '@/lib/format';
 import { useCan } from '@/stores/auth-store';
-import { ISSUE_REASONS, type DocumentType, type StockShortage } from '@/types';
+import { ISSUE_REASONS, type DocumentType, type StockDocumentDto, type StockShortage } from '@/types';
 import { LinesEditor } from '../components/lines-editor';
 import { DOCUMENT_CONFIG, newIdempotencyKey, REASON_LABEL } from '../config';
-import { useCreateDocument } from '../hooks/use-documents';
+import { useCreateDocument, useUpdateDocument } from '../hooks/use-documents';
 import {
   documentSchema,
   emptyDocumentForm,
   findOverStock,
+  fromDocument,
   toCreateRequest,
+  toUpdateRequest,
   type DocumentFormValues,
 } from '../schemas';
 
 const HEADER_FIELDS = ['warehouseId', 'toWarehouseId', 'supplierId', 'reason', 'note', 'lines'] as const;
 
-/** Lập phiếu (spec §4.2): 4 loại phiếu dùng chung một form, cột/field thay đổi theo loại. */
-export function DocumentFormPage({ type }: { type: DocumentType }) {
+/** Lập / sửa phiếu (spec §4.2): 4 loại phiếu dùng chung một form, cột/field thay đổi theo loại. `editing` = sửa phiếu nháp. */
+export function DocumentFormPage({ type, editing }: { type: DocumentType; editing?: StockDocumentDto }) {
   const cfg = DOCUMENT_CONFIG[type];
   const navigate = useNavigate();
   const canPost = useCan(cfg.activity, 'U');
   const create = useCreateDocument(cfg);
+  const update = useUpdateDocument(cfg);
+  const pending = create.isPending || update.isPending;
   // One key per form session: a double click or a retry after a network error returns the same document.
   const [idempotencyKey] = useState(newIdempotencyKey);
   const [shortages, setShortages] = useState<StockShortage[]>([]);
 
   const form = useForm<DocumentFormValues>({
     resolver: zodResolver(documentSchema(type)),
-    defaultValues: emptyDocumentForm(),
+    defaultValues: editing ? fromDocument(editing) : emptyDocumentForm(),
   });
 
   const { data: warehouses = [] } = useWarehouses();
@@ -78,6 +82,19 @@ export function DocumentFormPage({ type }: { type: DocumentType }) {
         toast.error('Có dòng vượt tồn hiện tại. Sửa số lượng trước khi lưu.');
         return;
       }
+      if (editing) {
+        update.mutate(
+          { id: editing.id, body: toUpdateRequest(type, values, editing.rowVersion) },
+          {
+            onSuccess: (doc) => {
+              toast.success(`Đã lưu ${doc.code}`);
+              navigate(`/${cfg.path}/${doc.id}`, { replace: true });
+            },
+            onError: handleError,
+          },
+        );
+        return;
+      }
       create.mutate(
         { body: toCreateRequest(type, values, post), idempotencyKey },
         {
@@ -93,16 +110,18 @@ export function DocumentFormPage({ type }: { type: DocumentType }) {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={`Lập ${cfg.noun}`}
+        title={editing ? `Sửa ${cfg.noun} ${editing.code}` : `Lập ${cfg.noun}`}
         description={
-          canPost
+          editing
+            ? 'Chỉ phiếu nháp mới sửa được. Lưu xong, duyệt / ghi sổ ở trang chi tiết phiếu.'
+            : canPost
             ? '“Ghi sổ” thay đổi tồn kho ngay. “Lưu nháp” để người khác kiểm tra và duyệt sau.'
             : 'Bạn lập phiếu nháp; quản lý kho sẽ duyệt và ghi sổ.'
         }
         actions={
           <Button variant="ghost" asChild>
-            <Link to={`/${cfg.path}`}>
-              <ArrowLeft /> Danh sách
+            <Link to={editing ? `/${cfg.path}/${editing.id}` : `/${cfg.path}`}>
+              <ArrowLeft /> {editing ? 'Chi tiết phiếu' : 'Danh sách'}
             </Link>
           </Button>
         }
@@ -183,12 +202,17 @@ export function DocumentFormPage({ type }: { type: DocumentType }) {
           </Card>
 
           <div className="sticky bottom-0 z-10 -mx-3 flex justify-end gap-2 border-t bg-background/95 px-3 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-            <Button type="button" variant={canPost ? 'outline' : 'default'} disabled={create.isPending} onClick={() => void submit(false)()}>
-              {create.isPending && !create.variables?.body.post ? <Loader2 className="animate-spin" /> : <Save />}
-              Lưu nháp
+            <Button
+              type="button"
+              variant={canPost && !editing ? 'outline' : 'default'}
+              disabled={pending}
+              onClick={() => void submit(false)()}
+            >
+              {update.isPending || (create.isPending && !create.variables?.body.post) ? <Loader2 className="animate-spin" /> : <Save />}
+              {editing ? 'Lưu thay đổi' : 'Lưu nháp'}
             </Button>
-            {canPost && (
-              <Button type="button" disabled={create.isPending || overStock.size > 0} onClick={() => void submit(true)()}>
+            {canPost && !editing && (
+              <Button type="button" disabled={pending || overStock.size > 0} onClick={() => void submit(true)()}>
                 {create.isPending && create.variables?.body.post ? <Loader2 className="animate-spin" /> : <Send />}
                 Ghi sổ
               </Button>

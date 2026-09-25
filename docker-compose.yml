@@ -27,6 +27,7 @@ services:
       Database__SeedDemoData: "true"
       Cors__Origins__0: "http://localhost:8091"
       App__FrontendBaseUrl: "http://localhost:8091"
+      ForwardedHeaders__Enabled: "true"
     ports: ["8090:8080"]
 
   redis:

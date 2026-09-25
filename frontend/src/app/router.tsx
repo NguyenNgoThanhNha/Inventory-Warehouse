@@ -3,7 +3,7 @@ import { createBrowserRouter, type RouteObject } from 'react-router-dom';
 import { AppLayout } from '@/layouts/app-layout';
 import { AuthLayout } from '@/layouts/auth-layout';
 import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from '@/features/auth';
-import { DOCUMENT_TYPE_LIST, DocumentDetailPage, DocumentFormPage, DocumentListPage } from '@/features/documents';
+import { DOCUMENT_TYPE_LIST, DocumentDetailPage, DocumentEditPage, DocumentFormPage, DocumentListPage } from '@/features/documents';
 import { StockPage } from '@/features/stock';
 import { PERMISSIONS } from '@/lib/permissions';
 import { HomeRedirect, NotFound, PermissionRoute, ProtectedRoute, PublicOnlyRoute } from './route-guards';
@@ -28,7 +28,10 @@ const documentRoutes: RouteObject[] = DOCUMENT_TYPE_LIST.flatMap((cfg) => [
   {
     element: <PermissionRoute anyOf={[[cfg.activity, 'C']]} />,
     // declared after /:id is fine: react-router ranks the static "new" segment higher
-    children: [{ path: `/${cfg.path}/new`, element: <DocumentFormPage key={cfg.type} type={cfg.type} /> }],
+    children: [
+      { path: `/${cfg.path}/new`, element: <DocumentFormPage key={cfg.type} type={cfg.type} /> },
+      { path: `/${cfg.path}/:id/edit`, element: <DocumentEditPage key={cfg.type} type={cfg.type} /> },
+    ],
   },
 ]);
 

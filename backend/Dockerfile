@@ -15,4 +15,6 @@ WORKDIR /app
 COPY --from=build /app .
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
+# Không chạy bằng root (user "app" có sẵn trong image aspnet).
+USER $APP_UID
 ENTRYPOINT ["dotnet", "Inventory.Api.dll"]

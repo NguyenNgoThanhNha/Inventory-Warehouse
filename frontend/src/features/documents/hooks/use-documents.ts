@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query-client';
-import type { CreateDocumentRequest, StockDocumentDto, StockDocumentsQuery } from '@/types';
+import type { CreateDocumentRequest, StockDocumentDto, StockDocumentsQuery, UpdateDocumentRequest } from '@/types';
 import { documentsApi } from '../api/documents-api';
 import type { DocumentTypeConfig } from '../config';
 
@@ -36,6 +36,15 @@ export function useCreateDocument(cfg: DocumentTypeConfig) {
     mutationFn: ({ body, idempotencyKey }: { body: CreateDocumentRequest; idempotencyKey: string }) =>
       documentsApi.create(cfg, body, idempotencyKey),
     // the form maps 400 field errors / 409 shortages onto its lines
+    meta: { suppressGlobalError: true },
+    onSuccess: onChanged,
+  });
+}
+
+export function useUpdateDocument(cfg: DocumentTypeConfig) {
+  const onChanged = useOnDocumentChanged(cfg);
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: UpdateDocumentRequest }) => documentsApi.update(cfg, id, body),
     meta: { suppressGlobalError: true },
     onSuccess: onChanged,
   });

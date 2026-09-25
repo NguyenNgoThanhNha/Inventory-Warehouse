@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CreateDocumentRequest, DocumentType } from '@/types';
+import type { CreateDocumentRequest, DocumentType, StockDocumentDto, UpdateDocumentRequest } from '@/types';
 import { ISSUE_REASONS } from '@/types';
 
 export const MAX_LINES = 500;
@@ -120,4 +120,35 @@ export function findOverStock(lines: DocumentLineValues[], available: Map<number
     if (Number.isFinite(qty) && qty > have) over.set(i, have);
   });
   return over;
+}
+
+/** A draft loaded from the API → form values (edit mode). */
+export function fromDocument(doc: StockDocumentDto): DocumentFormValues {
+  return {
+    warehouseId: String(doc.warehouse.id),
+    toWarehouseId: doc.toWarehouse ? String(doc.toWarehouse.id) : '',
+    supplierId: doc.supplier ? String(doc.supplier.id) : '',
+    reason: doc.reason ?? '',
+    note: doc.note ?? '',
+    lines: doc.lines.map((l) => ({
+      product: { id: l.productId, sku: l.sku, name: l.productName, unit: l.unit, cost: l.unitCost ?? 0 },
+      quantity: String(l.quantity),
+      unitCost: l.unitCost === null ? '' : String(l.unitCost),
+      note: l.note ?? '',
+    })),
+  };
+}
+
+/** Form values → PUT body for editing a draft. */
+export function toUpdateRequest(type: DocumentType, v: DocumentFormValues, rowVersion: string): UpdateDocumentRequest {
+  const create = toCreateRequest(type, v, false);
+  return {
+    rowVersion,
+    warehouseId: create.warehouseId ?? create.fromWarehouseId!,
+    toWarehouseId: create.toWarehouseId ?? null,
+    supplierId: create.supplierId ?? null,
+    reason: create.reason ?? null,
+    note: create.note ?? null,
+    lines: create.lines,
+  };
 }

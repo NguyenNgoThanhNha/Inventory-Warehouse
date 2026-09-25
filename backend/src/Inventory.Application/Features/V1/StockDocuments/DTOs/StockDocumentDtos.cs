@@ -28,6 +28,7 @@ public sealed record StockDocumentDto(
     IssueReason? Reason,
     string? Note,
     DateTime CreatedDate,
+    Guid? CreatedById,
     string? CreatedName,
     DateTime? PostedAt,
     string? PostedByName,

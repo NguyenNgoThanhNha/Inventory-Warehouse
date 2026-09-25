@@ -84,6 +84,22 @@ public class StockDocument : BaseEntity
         _lines.Add(new StockDocumentLine(productId, quantity, Type == DocumentType.GoodsReceipt ? unitCost : null, Clean(note)));
     }
 
+    /// <summary>
+    /// Sửa phiếu nháp: đổi thông tin chung (chỉ các trường thuộc loại phiếu này) và thay TOÀN BỘ dòng hàng.
+    /// Dòng cũ bị xóa hẳn (là phần con của phiếu); phiếu đã ghi sổ / đã hủy thì không sửa được.
+    /// </summary>
+    public void UpdateDraft(int warehouseId, int? toWarehouseId, int? supplierId, IssueReason? reason, string? note)
+    {
+        EnsureDraft();
+        if (Type == DocumentType.Transfer && toWarehouseId == warehouseId) throw new DomainException("Kho nhận phải khác kho xuất.");
+        WarehouseId = warehouseId;
+        ToWarehouseId = Type == DocumentType.Transfer ? toWarehouseId : null;
+        SupplierId = Type == DocumentType.GoodsReceipt ? supplierId : null;
+        Reason = Type == DocumentType.GoodsIssue ? reason : null;
+        Note = Clean(note);
+        _lines.Clear();
+    }
+
     public void MarkPosted(DateTime now, Guid? userId, string? userName)
     {
         EnsureDraft();

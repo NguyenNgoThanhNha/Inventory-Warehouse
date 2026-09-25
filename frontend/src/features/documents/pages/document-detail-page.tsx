@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Ban, FileQuestion, Send } from 'lucide-react';
+import { ArrowLeft, Ban, FileQuestion, Pencil, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,7 @@ import { getProblem, getStatus, showError } from '@/lib/api-errors';
 import { formatDateTime } from '@/lib/date';
 import { formatMoney, formatQty, formatSigned } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { useCan } from '@/stores/auth-store';
+import { useCan, useCurrentUser } from '@/stores/auth-store';
 import type { DocumentType, StockShortage } from '@/types';
 import { DocumentStatusBadge } from '../components/document-badges';
 import { DOCUMENT_CONFIG, REASON_LABEL } from '../config';
@@ -38,6 +38,8 @@ export function DocumentDetailPage({ type }: { type: DocumentType }) {
   const cancel = useCancelDocument(cfg);
   const canPost = useCan(cfg.activity, 'U');
   const canCancel = useCan(cfg.activity, 'D');
+  const canCreate = useCan(cfg.activity, 'C');
+  const me = useCurrentUser();
   const [confirm, setConfirm] = useState<'post' | 'cancel' | null>(null);
   const [shortages, setShortages] = useState<StockShortage[]>([]);
 
@@ -102,6 +104,13 @@ export function DocumentDetailPage({ type }: { type: DocumentType }) {
                 <ArrowLeft /> Danh sách
               </Link>
             </Button>
+            {isDraft && canCreate && (doc.createdById === me?.id || canPost) && (
+              <Button variant="outline" asChild>
+                <Link to={`/${cfg.path}/${doc.id}/edit`}>
+                  <Pencil /> Sửa
+                </Link>
+              </Button>
+            )}
             {isDraft && canCancel && (
               <Button variant="outline" onClick={() => setConfirm('cancel')}>
                 <Ban /> Hủy phiếu

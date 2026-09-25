@@ -142,6 +142,7 @@ export function stockDocument(overrides: Partial<StockDocumentDto> = {}): StockD
     reason: 'Sale',
     note: null,
     createdDate: '2026-09-25T02:00:00Z',
+    createdById: '00000000-0000-0000-0000-00000000a003',
     createdName: 'Phạm Thủ Kho',
     postedAt: null,
     postedByName: null,

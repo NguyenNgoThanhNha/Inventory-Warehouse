@@ -2,7 +2,7 @@
 
 Dự án #2 trong roadmap ([spec](../../Roadmap/projects/02-Inventory-Warehouse.md)). Backend copy template từ [Dự án #1](../Helpdesk-Ticketing/backend), giữ nguyên auth, phân quyền 6 bảng, `IUnitOfWork<TContext>` và log API; phần viết thêm là `Features/V1/<nghiệp vụ kho>`. Luật code: [backend/RULES.md](backend/RULES.md) (mục 12 là luật riêng cho tồn kho).
 
-Trọng tâm: **tồn kho không bao giờ sai hoặc âm khi nhiều người thao tác cùng lúc.**
+Trọng tâm: **tồn kho không bao giờ sai hoặc âm khi nhiều người thao tác cùng lúc.** Kiến trúc và sơ đồ: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Tiến độ theo lộ trình
 
@@ -12,11 +12,25 @@ Trọng tâm: **tồn kho không bao giờ sai hoặc âm khi nhiều người t
 | 2 | Phiếu nhập + StockMovement + cập nhật tồn | ✅ |
 | 3 | Phiếu xuất + optimistic concurrency + chống tồn âm | ✅ |
 | 4 | Chuyển kho (nguyên tử) + kiểm kê + audit | ✅ |
-| 8 (một phần) | Idempotency-Key; unit test logic tồn; integration test concurrency | ✅ |
 | 5 | FE: bảng tồn kho lớn (virtualized, server-side), form phiếu, danh mục | ✅ |
 | 6 | Kardex (SP + window function) + dashboard (SP, 6 bảng) + cache Redis | ✅ |
 | 7 | Import/Export Excel theo lô (báo lỗi từng dòng) + job cảnh báo tồn thấp | ✅ |
-| 9 | Docker compose (API + SQL + Redis + FE) xong; còn deploy + diagram | ⏳ |
+| 8 | Idempotency-Key; sửa phiếu nháp; test (BE 48 unit + 21 integration trên SQL thật, FE 65) | ✅ |
+| 9 | Docker compose dev + prod, CI, CD (GHCR + SSH), sơ đồ kiến trúc | ✅ |
+| 9 | Deploy live | ⏳ cần máy chủ + repo GitHub (xem [Deploy](#deploy)) |
+
+## Definition of Done (spec §9)
+
+| Tiêu chí | Trạng thái | Bằng chứng |
+|---|---|---|
+| Hai phiếu xuất đồng thời trên hàng sắp hết → chặn đúng cách, có test | ✅ | `StockConcurrencyTests.Concurrent_issues_on_low_stock_never_oversell`: 6 phiếu × 3 cái vào tồn 10 → 3 phiếu `201`, 3 phiếu `409`, tồn còn 1 |
+| Tồn không âm; mọi thay đổi tồn có StockMovement | ✅ | 3 lớp chặn (ledger, `StockLevel.Adjust`, CHECK constraint — có test bypass bằng SQL); test "tổng sổ cái = tồn" |
+| Chuyển kho nguyên tử | ✅ | `Transfer_is_atomic_when_one_line_is_short` |
+| Bảng tồn mượt với ≥ 10.000 dòng | ✅ | 12.018 mã: DOM giữ ~40 dòng khi đã tải 1.600; `GET /stock` 15–70 ms; test virtualization 12.000 dòng |
+| Kardex đúng với running total | ✅ | `Kardex_running_balance_matches_stock_and_survives_paging` |
+| Import 1.000+ dòng không timeout, báo lỗi từng dòng | ✅ | Test 1.500 dòng qua HTTP; đo tay 10.000 dòng (xem phần Import) |
+| Cấu trúc + phân quyền đúng chuẩn BE (mỗi endpoint có `[HasPermission]` hoặc lý do) | ✅ | RULES.md mục 1–12; test 403 cho từng nhóm endpoint |
+| Deploy live + README + diagram | ⏳ | README + [ARCHITECTURE.md](docs/ARCHITECTURE.md) xong; deploy cần máy chủ |
 
 ## Chạy local
 
@@ -117,6 +131,33 @@ Controller [HasPermission GOODS_ISSUE:C]
   - Thông báo gửi cho người có `WAREHOUSE:U`, **một thông báo tóm tắt cho mỗi kho** chứ không gửi từng mặt hàng. Bấm vào thông báo sẽ mở màn Tồn kho đã lọc sẵn hàng sắp hết của kho đó.
   - Có trang `/alerts` và nút "Quét ngay".
 
+## Deploy
+
+**CI** (`.github/workflows/ci.yml`): mỗi lần push/PR sẽ build và chạy test backend (integration test dùng SQL Server qua Testcontainers), rồi lint + build + test frontend.
+
+**CD** (`.github/workflows/cd.yml`): push tag `v*` (hoặc chạy tay) sẽ:
+1. Build 2 image `inventory-api` và `inventory-web`, đẩy lên GitHub Container Registry với tag `latest`, `<version>` và `<sha>`.
+2. Nếu biến `DEPLOY_ENABLED=true`: SSH vào máy chủ, rồi `docker compose -f docker-compose.prod.yml pull && up -d`.
+
+Chuẩn bị máy chủ (một VPS Linux có Docker):
+
+```bash
+mkdir -p ~/inventory && cd ~/inventory
+```
+
+```bash
+cp .env.example .env
+```
+
+Sửa `.env` (SA_PASSWORD, JWT_KEY ≥ 32 ký tự, PUBLIC_URL, IMAGE_PREFIX=ghcr.io/<github-user>/inventory), rồi đặt reverse proxy có TLS (Caddy / Nginx / Cloudflare Tunnel) trỏ vào `WEB_PORT`. Trên GitHub cần cấu hình:
+- Secrets: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_PATH`.
+- Variable: `DEPLOY_ENABLED=true`.
+- Nếu package GHCR để private: máy chủ phải `docker login ghcr.io` một lần.
+
+Production: `MigrateOnStartup=true`, dữ liệu demo tắt (`SEED_DEMO_DATA=false`). Container API chạy bằng user thường (không phải root) và đọc IP / scheme thật từ `X-Forwarded-*` khi `ForwardedHeaders:Enabled=true`.
+
+> Chưa kiểm chứng: image Docker chưa được build ở máy dev (Docker Desktop lỗi khi khởi động). Hai file compose đã qua `docker compose config`. Lần build image đầu tiên sẽ chạy trong CD.
+
 ## API
 
 | Method | Route | Quyền |
@@ -132,6 +173,7 @@ Controller [HasPermission GOODS_ISSUE:C]
 | GET | `/api/v1/exports/stock?…` · `/api/v1/exports/kardex?…` | IMPORT_EXPORT:R + STOCK_REPORT:R |
 | GET / POST | `/api/v1/stock-alerts?isResolved=&warehouseId=` · `/api/v1/stock-alerts/scan` | STOCK_REPORT:R · WAREHOUSE:U |
 | GET/POST | `/api/v1/goods-receipts` · `goods-issues` · `transfers` · `stock-takes` | R / C (+U nếu `post: true`) |
+| PUT | `/api/v1/<loại phiếu>/{id}` (sửa phiếu nháp, body có `rowVersion`) | C + (chủ phiếu hoặc U) |
 | GET | `/api/v1/<loại phiếu>/{id}` | R |
 | POST | `/api/v1/<loại phiếu>/{id}/post` · `/{id}/cancel` (body `{ rowVersion }`) | U / D |
 | GET/POST/PUT/DELETE | `/api/v1/products`, `/product-groups`, `/warehouses`, `/suppliers` | PRODUCT / WAREHOUSE / SUPPLIER |
