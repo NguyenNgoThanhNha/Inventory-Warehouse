@@ -411,3 +411,71 @@ export interface CreateDocumentRequest {
   lines: DocumentLineInput[];
   post: boolean;
 }
+
+// ---- Reports ----
+export type MovementType = 'In' | 'Out' | 'TransferIn' | 'TransferOut' | 'Adjust';
+
+export interface KardexRowDto {
+  id: number;
+  occurredAt: string;
+  documentId: number;
+  documentCode: string;
+  documentType: DocumentType;
+  movementType: MovementType;
+  warehouseId: number;
+  warehouseCode: string;
+  inQty: number;
+  outQty: number;
+  balance: number;
+}
+
+export interface KardexDto {
+  productId: number;
+  sku: string;
+  productName: string;
+  unit: string;
+  warehouseId: number | null;
+  /** yyyy-MM-dd (business-local day) */
+  from: string;
+  to: string;
+  opening: number;
+  totalIn: number;
+  totalOut: number;
+  closing: number;
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  rows: KardexRowDto[];
+}
+
+export interface KardexQuery {
+  productId: number;
+  warehouseId?: number;
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface DashboardDto {
+  generatedAt: string;
+  stockValue: number;
+  productsInStock: number;
+  lowStockCount: number;
+  draftDocuments: number;
+  postedToday: number;
+  slowMovingDays: number;
+  valueByWarehouse: { warehouseId: number; code: string; name: string; value: number; quantity: number }[];
+  valueByGroup: { groupId: number; name: string; value: number }[];
+  topLowStock: {
+    productId: number;
+    sku: string;
+    name: string;
+    warehouseId: number;
+    warehouseCode: string;
+    quantity: number;
+    minThreshold: number;
+  }[];
+  inOutByDay: { date: string; inValue: number; outValue: number }[];
+  slowMoving: { productId: number; sku: string; name: string; quantity: number; value: number; lastOutAt: string | null }[];
+}

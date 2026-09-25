@@ -43,6 +43,7 @@ namespace Inventory.Application.Features.V1.Reports.DTOs
     public sealed record SlowMovingItemDto(int ProductId, string Sku, string Name, decimal Quantity, decimal Value, DateTime? LastOutAt);
 
     public sealed record DashboardDto(
+        DateTime GeneratedAt,
         decimal StockValue,
         int ProductsInStock,
         int LowStockCount,
@@ -168,23 +169,36 @@ namespace Inventory.Application.Features.V1.Reports.Queries.GetDashboard
     public sealed record GetDashboardQuery(int? WarehouseId = null) : IRequest<DashboardDto>;
 
     /// <summary>6 bảng tổng hợp trong 1 round-trip: [dbo].[usp_Report_Dashboard].</summary>
-    public sealed class GetDashboardQueryHandler(IUnitOfWork<InventoryDbContext> unitOfWork, IOptions<AppOptions> options, TimeProvider clock)
+    public sealed class GetDashboardQueryHandler(
+        IUnitOfWork<InventoryDbContext> unitOfWork, ICacheService cache, IOptions<AppOptions> options, TimeProvider clock)
         : IRequestHandler<GetDashboardQuery, DashboardDto>
     {
         public const int ChartDays = 30;
         public const int SlowMovingDays = 30;
         public const int TopItems = 10;
 
+        /// <summary>
+        /// SP quét toàn bộ tồn (~170 ms trên 12k mã) mà số liệu tổng quan không cần tức thời → cache ngắn.
+        /// FE hiện <see cref="DashboardDto.GeneratedAt"/> để người xem biết số liệu lúc nào.
+        /// </summary>
+        public static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(30);
+
         public Task<DashboardDto> Handle(GetDashboardQuery request, CancellationToken ct)
         {
             var zone = options.Value.TimeZone;
             var now = clock.GetUtcNow().UtcDateTime;
             var today = BusinessDate.Today(now, zone);
+            return cache.GetOrSetAsync(ConstCacheKey.Dashboard(request.WarehouseId, today),
+                _ => Task.FromResult(Load(request.WarehouseId, zone, now, today)), CacheTtl, ct);
+        }
+
+        private DashboardDto Load(int? warehouseId, TimeZoneInfo zone, DateTime now, DateOnly today)
+        {
             var chartFrom = today.AddDays(-(ChartDays - 1));
 
             var ds = unitOfWork.ExecuteStoreProcedureGetMultiTables("[dbo].[usp_Report_Dashboard]", new Hashtable
             {
-                ["@WarehouseId"] = request.WarehouseId,
+                ["@WarehouseId"] = warehouseId,
                 ["@TodayStartUtc"] = BusinessDate.StartUtc(today, zone),
                 ["@TodayEndUtc"] = BusinessDate.StartUtc(today.AddDays(1), zone),
                 ["@ChartFromUtc"] = BusinessDate.StartUtc(chartFrom, zone),
@@ -210,8 +224,8 @@ namespace Inventory.Application.Features.V1.Reports.Queries.GetDashboard
                 .Select(d => perDay.TryGetValue(d, out var r) ? new InOutDayDto(d, r.InValue, r.OutValue) : new InOutDayDto(d, 0, 0))
                 .ToList();
 
-            return Task.FromResult(new DashboardDto(kpi.StockValue, kpi.ProductsInStock, kpi.LowStockCount, kpi.DraftDocuments,
-                kpi.PostedToday, SlowMovingDays, byWarehouse, byGroup, low, inOut, slow));
+            return new DashboardDto(now, kpi.StockValue, kpi.ProductsInStock, kpi.LowStockCount, kpi.DraftDocuments,
+                kpi.PostedToday, SlowMovingDays, byWarehouse, byGroup, low, inOut, slow);
         }
 
         private sealed class KpiRow

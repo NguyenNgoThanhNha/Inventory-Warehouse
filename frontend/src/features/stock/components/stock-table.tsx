@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Loader2, TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -118,7 +119,11 @@ export function StockTable({
                   )}
                   style={{ gridTemplateColumns, height: ROW_HEIGHT, transform: `translateY(${item.start}px)` }}
                 >
-                  <div role="cell" className="truncate px-3 font-mono text-xs">{row.sku}</div>
+                  <div role="cell" className="truncate px-3 font-mono text-xs">
+                    <Link to={`/kardex?productId=${row.productId}`} className="text-primary hover:underline" title="Xem thẻ kho">
+                      {row.sku}
+                    </Link>
+                  </div>
                   <div role="cell" className="truncate px-3 font-medium" title={row.name}>
                     {row.name} <span className="font-normal text-muted-foreground">({row.unit})</span>
                   </div>

@@ -14,9 +14,9 @@ Trọng tâm: **tồn kho không bao giờ sai hoặc âm khi nhiều người t
 | 4 | Chuyển kho (nguyên tử) + kiểm kê + audit | ✅ |
 | 8 (một phần) | Idempotency-Key; unit test logic tồn; integration test concurrency | ✅ |
 | 5 | FE: bảng tồn kho lớn (virtualized, server-side), form phiếu, danh mục | ✅ |
-| 6 | Kardex (SP + window function) + dashboard + Redis cache | ⏳ |
+| 6 | Kardex (SP + window function) + dashboard (SP, 6 bảng) + cache Redis | ✅ |
 | 7 | Import/Export Excel theo batch + job cảnh báo tồn thấp | ⏳ |
-| 9 | Docker (API + SQL + FE xong; còn Redis), deploy, diagram | ⏳ |
+| 9 | Docker compose (API + SQL + Redis + FE) xong; còn deploy + diagram | ⏳ |
 
 ## Chạy local
 
@@ -50,6 +50,8 @@ FE: http://localhost:5174 (Vite proxy `/api` → `:5090`). Chạy toàn bộ b�
 | Lập phiếu `/<loại>/new` | Một form dùng cho 4 loại phiếu. Mỗi dòng hiện **tồn hiện tại**; vượt tồn thì tô đỏ và khóa nút “Ghi sổ”. Lỗi 409 kèm `shortages` từ server được gắn về đúng dòng. Mỗi phiên form dùng một `Idempotency-Key`, nên bấm hai lần hay gửi lại vẫn chỉ tạo một phiếu. |
 | Chi tiết phiếu `/<loại>/:id` | Ghi sổ hoặc hủy phiếu nháp, gửi kèm `rowVersion`. Phiếu kiểm kê hiện tồn sổ sách và chênh lệch. |
 | Danh mục `/catalog` | Sản phẩm (tìm phía server), nhóm hàng, kho, nhà cung cấp. |
+| Tổng quan `/dashboard` | KPI (giá trị tồn, mã còn hàng, dòng dưới ngưỡng, phiếu nháp, phiếu ghi sổ hôm nay), biểu đồ nhập–xuất 30 ngày, giá trị tồn theo kho / nhóm, hàng sắp hết, hàng chậm luân chuyển. Lọc theo kho. |
+| Thẻ kho `/kardex` | Sổ nhập – xuất – tồn một sản phẩm: tồn đầu kỳ, từng chứng từ (link sang phiếu), tồn cuối lũy kế, phân trang. Mở từ SKU ở bảng tồn hoặc từ dashboard. |
 
 **Dữ liệu lớn:** `Database:SeedBulkProducts` (Development = 12000) seed thêm 12.000 mã, kèm phiếu nhập tồn đầu kỳ đi qua StockLedger. Đo trên 12.018 mã sau khi warm-up: `GET /stock` với mọi kiểu lọc (trang 1, trang 100, theo kho, theo nhóm, dưới ngưỡng, tìm SKU) đều mất 15–70 ms, nên chưa cần stored procedure (RULES 3.11). Trên trình duyệt: đã tải 1.600 dòng nhưng DOM chỉ giữ khoảng 40 dòng.
 
@@ -89,12 +91,24 @@ Controller [HasPermission GOODS_ISSUE:C]
 
 Đã đo trên SQL Server thật: 6 phiếu xuất × 3 cái bắn song song vào SKU còn 10 → đúng 3 phiếu `201`, 3 phiếu `409`, tồn còn 1, tổng sổ cái = 1 (xem `StockConcurrencyTests`).
 
+## Báo cáo & cache
+
+- **Thẻ kho** — `usp_Report_Kardex`. Tồn đầu kỳ bằng tổng các movement trước `from`. Tồn cuối từng dòng = đầu kỳ + `SUM(Quantity) OVER (ORDER BY OccurredAt, Id ROWS UNBOUNDED PRECEDING)`. Running total được tính trên cả khoảng thời gian **rồi mới** phân trang, nên số dư ở trang 2 vẫn đúng (có test). Đo: 23–70 ms.
+- **Dashboard** — `usp_Report_Dashboard` trả 6 bảng trong một lần gọi. Đo trên 12.018 mã: khoảng 170 ms phía SQL, phần lớn là bước dựng bảng tạm tồn kho. Vì vậy API cache kết quả **30 giây**, và FE hiện "Số liệu lúc …".
+  - Câu "hàng chậm luân chuyển" được viết lại để chỉ xét movement gần đây, không gom trên toàn bộ lịch sử. Đo trên dữ liệu hiện tại thì nhanh ngang bản cũ, nhưng không bị chậm dần khi lịch sử dài ra.
+- **Ngày nghiệp vụ** — DB lưu giờ UTC; "hôm nay", biểu đồ theo ngày và khoảng ngày của thẻ kho cắt theo `App:TimeZoneId` (mặc định `Asia/Ho_Chi_Minh`).
+- **Cache danh mục** (`ICatalogCache`) — danh sách nhóm hàng, kho, và kết quả tìm sản phẩm được cache 10 phút. Mọi lệnh sửa danh mục đổi một *version token*, nên tất cả key cũ tự bị bỏ qua mà không phải xóa từng key.
+  - Có `ConnectionStrings:Redis` thì dùng Redis (timeout 500 ms); không có thì dùng bộ nhớ trong tiến trình.
+  - Redis lỗi hay chậm thì log cảnh báo rồi đọc thẳng DB, request không bị lỗi (có unit test).
+
 ## API
 
 | Method | Route | Quyền |
 |---|---|---|
 | GET | `/api/v1/stock?warehouseId=&groupId=&search=&belowThreshold=&page=&pageSize=` | STOCK_REPORT:R |
 | GET | `/api/v1/stock/available?warehouseId=&productIds=` | STOCK_REPORT:R |
+| GET | `/api/v1/reports/dashboard?warehouseId=` | STOCK_REPORT:R |
+| GET | `/api/v1/reports/kardex?productId=&warehouseId=&from=&to=&page=&pageSize=` | STOCK_REPORT:R |
 | PUT | `/api/v1/stock/threshold` | WAREHOUSE:U |
 | GET/POST | `/api/v1/goods-receipts` · `goods-issues` · `transfers` · `stock-takes` | R / C (+U nếu `post: true`) |
 | GET | `/api/v1/<loại phiếu>/{id}` | R |

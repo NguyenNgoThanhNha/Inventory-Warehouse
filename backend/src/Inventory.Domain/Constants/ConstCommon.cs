@@ -21,6 +21,8 @@ public static class ConstCacheKey
 
     public static string Catalog(string version, string name) => $"catalog:{version}:{name}";
 
+    public static string Dashboard(int? warehouseId, DateOnly day) => $"dashboard:{warehouseId?.ToString() ?? "all"}:{day:yyyyMMdd}";
+
     public const string ProductGroups = "product-groups";
 
     public static string Warehouses(bool includeInactive) => $"warehouses:{(includeInactive ? "all" : "active")}";

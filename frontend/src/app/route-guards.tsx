@@ -42,7 +42,7 @@ export function PermissionRoute({ anyOf }: { anyOf: readonly PermissionRequireme
   return <Outlet />;
 }
 
-/** First page the user may open: stock table, else the first document list, else catalog. */
+/** First page the user may open: dashboard, else the first document list, else catalog. */
 export function HomeRedirect() {
   const user = useCurrentUser();
   const target = HOME_CANDIDATES.find(([, anyOf]) => canAny(user, anyOf))?.[0] ?? '/catalog';
@@ -50,7 +50,7 @@ export function HomeRedirect() {
 }
 
 const HOME_CANDIDATES: [string, readonly PermissionRequirement[]][] = [
-  ['/stock', PERMISSIONS.stock],
+  ['/dashboard', PERMISSIONS.stock],
   ['/goods-receipts', PERMISSIONS.goodsReceipts],
   ['/goods-issues', PERMISSIONS.goodsIssues],
   ['/transfers', PERMISSIONS.transfers],

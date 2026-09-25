@@ -138,6 +138,8 @@ Mức độ: **[BẮT BUỘC]** = vi phạm thì không merge · **[NÊN]** = l�
 | 12.4 | **[BẮT BUỘC]** Lệnh tạo phiếu nhận header `Idempotency-Key` và đi qua `IStockDocumentWriter` (kiểm tra key trước, ghi key cùng lần save với phiếu). |
 | 12.5 | **[BẮT BUỘC]** Phiếu đã ghi sổ (`Posted`) là bất biến. Sai thì lập phiếu điều chỉnh/phiếu ngược, không sửa phiếu cũ. |
 | 12.6 | **[BẮT BUỘC]** Ghi sổ (duyệt) cần quyền `U` của loại phiếu; tạo phiếu kèm `post: true` cũng phải kiểm tra quyền `U` đó. |
+| 12.7 | **[BẮT BUỘC]** Chỉ cache dữ liệu ít đổi (danh mục) hoặc chấp nhận trễ (dashboard, ghi rõ TTL). **Không** cache tồn kho dùng để kiểm tra khi xuất/chuyển. Lệnh sửa danh mục phải gọi `ICatalogCache.InvalidateAsync()` **sau** `SaveChangesAsync`. Key cache khai trong `ConstCacheKey`. |
+| 12.8 | **[BẮT BUỘC]** Báo cáo theo ngày cắt ngày theo `App:TimeZoneId` (`BusinessDate`), không theo ngày UTC. |
 
 ---
 

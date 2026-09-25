@@ -79,22 +79,31 @@ BEGIN
     GROUP BY CAST(DATEADD(MINUTE, @UtcOffsetMinutes, m.OccurredAt) AS DATE)
     OPTION (RECOMPILE);
 
-    -- 6. Hàng chậm luân chuyển: còn tồn nhưng không xuất (bán/hủy/sản xuất/chuyển đi) từ @SlowBeforeUtc
-    ;WITH lastOut AS (
-        SELECT m.ProductId, MAX(m.OccurredAt) AS LastOutAt
-        FROM dbo.StockMovements m
-        WHERE m.Type IN (2, 4) AND (@WarehouseId IS NULL OR m.WarehouseId = @WarehouseId)
-        GROUP BY m.ProductId
-    ), stock AS (
+    -- 6. Hàng chậm luân chuyển: còn tồn nhưng không xuất (bán/hủy/sản xuất/chuyển đi) từ @SlowBeforeUtc.
+    --    Không gom MAX(OccurredAt) trên TOÀN BỘ lịch sử movement (chi phí tăng mãi theo thời gian): lọc bằng
+    --    NOT EXISTS chỉ trên movement gần đây, lấy TOP trước, rồi mới tính LastOutAt cho đúng  dòng.
+    --    Đo 12k mã / 24k movement: cả SP ~170 ms SQL (dựng #s ~55 ms là phần lớn nhất) → API cache 30 giây.
+    ;WITH stock AS (
         SELECT ProductId, Sku, Name, SUM(Quantity) AS Quantity, SUM(Quantity * Cost) AS Value
         FROM #s
         GROUP BY ProductId, Sku, Name
         HAVING SUM(Quantity) > 0
+    ), slow AS (
+        SELECT TOP (@Top) s.ProductId, s.Sku, s.Name, s.Quantity, s.Value
+        FROM stock s
+        WHERE NOT EXISTS (
+            SELECT 1 FROM dbo.StockMovements m
+            WHERE m.ProductId = s.ProductId AND m.Type IN (2, 4) AND m.OccurredAt >= @SlowBeforeUtc
+              AND (@WarehouseId IS NULL OR m.WarehouseId = @WarehouseId))
+        ORDER BY s.Value DESC, s.Sku
     )
-    SELECT TOP (@Top) s.ProductId, s.Sku, s.Name, s.Quantity, CAST(s.Value AS DECIMAL(19, 2)) AS Value, lo.LastOutAt
-    FROM stock s
-    LEFT JOIN lastOut lo ON lo.ProductId = s.ProductId
-    WHERE lo.LastOutAt IS NULL OR lo.LastOutAt < @SlowBeforeUtc
-    ORDER BY s.Value DESC, s.Sku
+    SELECT sl.ProductId, sl.Sku, sl.Name, sl.Quantity, CAST(sl.Value AS DECIMAL(19, 2)) AS Value, lo.LastOutAt
+    FROM slow sl
+    OUTER APPLY (
+        SELECT MAX(m.OccurredAt) AS LastOutAt
+        FROM dbo.StockMovements m
+        WHERE m.ProductId = sl.ProductId AND m.Type IN (2, 4)
+          AND (@WarehouseId IS NULL OR m.WarehouseId = @WarehouseId)) lo
+    ORDER BY sl.Value DESC, sl.Sku
     OPTION (RECOMPILE);
 END

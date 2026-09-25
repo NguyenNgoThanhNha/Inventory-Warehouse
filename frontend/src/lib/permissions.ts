@@ -22,6 +22,7 @@ export function canAny(user: CurrentUserDto | null | undefined, requirements: re
 
 /** Route / menu gates (single source of truth for the router and the sidebar). */
 export const PERMISSIONS = {
+  /** stock table, dashboard, kardex */
   stock: [['STOCK_REPORT', 'R']],
   goodsReceipts: [['GOODS_RECEIPT', 'R']],
   goodsIssues: [['GOODS_ISSUE', 'R']],
