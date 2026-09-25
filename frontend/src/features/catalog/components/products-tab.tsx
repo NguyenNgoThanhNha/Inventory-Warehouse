@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { FileUp, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { formatMoney } from '@/lib/format';
 import { useCan } from '@/stores/auth-store';
 import type { ProductDto } from '@/types';
 import { useDeleteProduct, useProductGroups, useProducts } from '../hooks/use-catalog';
+import { ImportProductsDialog } from './import-products-dialog';
 import { ProductDialog } from './product-dialog';
 
 const ALL = 'all';
@@ -31,6 +32,9 @@ export function ProductsTab() {
   const { data: groups = [] } = useProductGroups();
   const remove = useDeleteProduct();
   const canCreate = useCan('PRODUCT', 'C');
+  // import cần cả IMPORT_EXPORT:C và PRODUCT:C (giống API)
+  const canImport = useCan('IMPORT_EXPORT', 'C') && canCreate;
+  const [importing, setImporting] = useState(false);
   const canUpdate = useCan('PRODUCT', 'U');
   const canDelete = useCan('PRODUCT', 'D');
   const [dialog, setDialog] = useState<{ open: boolean; product: ProductDto | null }>({ open: false, product: null });
@@ -109,11 +113,18 @@ export function ProductsTab() {
             ))}
           </SelectContent>
         </Select>
-        {canCreate && (
-          <Button className="ml-auto" onClick={() => setDialog({ open: true, product: null })}>
-            <Plus /> Thêm sản phẩm
-          </Button>
-        )}
+        <div className="ml-auto flex gap-2">
+          {canImport && (
+            <Button variant="outline" onClick={() => setImporting(true)}>
+              <FileUp /> Import Excel
+            </Button>
+          )}
+          {canCreate && (
+            <Button onClick={() => setDialog({ open: true, product: null })}>
+              <Plus /> Thêm sản phẩm
+            </Button>
+          )}
+        </div>
       </div>
       <DataTable
         aria-label="Sản phẩm"
@@ -135,6 +146,7 @@ export function ProductsTab() {
         }}
       />
       <ProductDialog product={dialog.product} open={dialog.open} onOpenChange={(open) => setDialog((d) => ({ ...d, open }))} />
+      <ImportProductsDialog open={importing} onOpenChange={setImporting} />
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(o) => !o && setDeleting(null)}

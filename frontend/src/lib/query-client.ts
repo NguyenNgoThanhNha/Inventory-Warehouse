@@ -67,6 +67,8 @@ export const queryKeys = {
   unreadCount: ['notifications', 'unread-count'] as const,
   dashboard: (warehouseId: number | undefined) => ['reports', 'dashboard', warehouseId ?? 'all'] as const,
   kardex: (params: object) => ['reports', 'kardex', params] as const,
+  stockAlerts: ['stock-alerts'] as const,
+  stockAlertList: (params: object) => ['stock-alerts', 'list', params] as const,
   apiLogs: (params: object) => ['api-logs', 'list', params] as const,
   apiLog: (id: number) => ['api-logs', 'detail', id] as const,
 };

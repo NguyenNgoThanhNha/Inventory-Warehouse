@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import { DataTablePagination } from '@/components/common/data-table';
 import { DateRangePicker } from '@/components/common/date-range-picker';
 import { EmptyState } from '@/components/common/empty-state';
+import { ExportButton } from '@/components/common/export-button';
 import { PageHeader } from '@/components/common/page-header';
 import { ProductPicker, useWarehouses } from '@/features/catalog';
 import { DOCUMENT_CONFIG } from '@/features/documents';
@@ -15,6 +16,7 @@ import { dayjs, formatDateTime, toApiDate } from '@/lib/date';
 import { formatQty } from '@/lib/format';
 import { toPositiveInt, useUrlParams } from '@/lib/hooks/use-url-params';
 import { cn } from '@/lib/utils';
+import { useCan } from '@/stores/auth-store';
 import type { KardexQuery, MovementType } from '@/types';
 import { useKardex } from '../hooks/use-reports';
 
@@ -45,6 +47,7 @@ export function KardexPage() {
   );
   const { data, isFetching, isError } = useKardex(query);
   const { data: warehouses = [] } = useWarehouses();
+  const canExport = useCan('IMPORT_EXPORT', 'R');
 
   const picked = data && data.productId === productId
     ? { id: data.productId, sku: data.sku, name: data.productName, unit: data.unit, cost: 0 }
@@ -54,7 +57,19 @@ export function KardexPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Thẻ kho" description="Sổ nhập – xuất – tồn của một sản phẩm theo khoảng thời gian" />
+      <PageHeader
+        title="Thẻ kho"
+        description="Sổ nhập – xuất – tồn của một sản phẩm theo khoảng thời gian"
+        actions={
+          canExport && productId && (
+            <ExportButton
+              url="/exports/kardex"
+              params={{ productId, warehouseId, from: from ?? data?.from, to: to ?? data?.to }}
+              fallbackName="the-kho.xlsx"
+            />
+          )
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="w-full max-w-sm">

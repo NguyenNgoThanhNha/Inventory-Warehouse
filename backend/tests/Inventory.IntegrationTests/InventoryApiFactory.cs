@@ -46,6 +46,7 @@ public sealed class InventoryApiFactory : WebApplicationFactory<Program>, IAsync
         builder.UseSetting("Database:MigrateOnStartup", "true");
         builder.UseSetting("Database:SeedDemoData", "true");
         builder.UseSetting("RateLimiting:AuthPermitPerMinute", "1000");
+        builder.UseSetting("StockAlerts:InitialDelaySeconds", "3600"); // test gọi /stock-alerts/scan trực tiếp
         builder.UseSetting("FileStorage:RootPath", Path.Combine(Path.GetTempPath(), "inventory-test-uploads"));
     }
 

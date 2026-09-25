@@ -59,12 +59,9 @@ namespace Inventory.Application.Features.V1.Reports.DTOs
 
 namespace Inventory.Application.Features.V1.Reports.Queries.GetKardex
 {
-    using System.Collections;
     using FluentValidation;
-    using Inventory.Application.Common.Data;
     using Inventory.Application.Features.V1.Reports.DTOs;
-    using Inventory.Domain.Entities.Catalog;
-    using Microsoft.Extensions.Options;
+    using Inventory.Application.Features.V1.Reports.Services;
 
     /// <summary>
     /// Sổ nhập – xuất – tồn (kardex) của một sản phẩm, một kho (hoặc mọi kho) trong [from, to] theo ngày địa phương.
@@ -92,69 +89,10 @@ namespace Inventory.Application.Features.V1.Reports.Queries.GetKardex
         }
     }
 
-    /// <summary>
-    /// Running total cần tính trên toàn bộ khoảng rồi mới phân trang → [dbo].[usp_Report_Kardex] dùng
-    /// SUM() OVER (ORDER BY ... ROWS UNBOUNDED PRECEDING); LINQ/EF không diễn đạt gọn được.
-    /// </summary>
-    public sealed class GetKardexQueryHandler(IUnitOfWork<InventoryDbContext> unitOfWork, IOptions<AppOptions> options, TimeProvider clock)
-        : IRequestHandler<GetKardexQuery, KardexDto>
+    public sealed class GetKardexQueryHandler(IKardexReader reader) : IRequestHandler<GetKardexQuery, KardexDto>
     {
-        public async Task<KardexDto> Handle(GetKardexQuery request, CancellationToken ct)
-        {
-            var product = await unitOfWork.Repository<Product>().AsNoTracking().IgnoreQueryFilters() // SP đã xóa mềm vẫn có lịch sử
-                              .Where(p => p.Id == request.ProductId)
-                              .Select(p => new { p.Sku, p.Name, p.Unit })
-                              .FirstOrDefaultAsync(ct)
-                          ?? throw new NotFoundException("Product", request.ProductId);
-
-            var zone = options.Value.TimeZone;
-            var to = request.To ?? BusinessDate.Today(clock.GetUtcNow().UtcDateTime, zone);
-            var from = request.From ?? to.AddDays(-29);
-
-            var ds = unitOfWork.ExecuteStoreProcedureGetMultiTables("[dbo].[usp_Report_Kardex]", new Hashtable
-            {
-                ["@ProductId"] = request.ProductId,
-                ["@WarehouseId"] = request.WarehouseId,
-                ["@From"] = BusinessDate.StartUtc(from, zone),
-                ["@To"] = BusinessDate.StartUtc(to.AddDays(1), zone),
-                ["@Page"] = request.SafePage,
-                ["@PageSize"] = request.SafePageSize
-            }).ToDataSetSimpleRead();
-
-            var summary = ds.TryRead<SummaryRow>()?.FirstOrDefault() ?? new SummaryRow();
-            var rows = (ds.TryRead<Row>() ?? [])
-                .Select(r => new KardexRowDto(r.Id, r.OccurredAt, r.DocumentId, r.DocumentCode, r.DocumentType, r.MovementType,
-                    r.WarehouseId, r.WarehouseCode, r.InQty, r.OutQty, r.Balance))
-                .ToList();
-
-            return new KardexDto(request.ProductId, product.Sku, product.Name, product.Unit, request.WarehouseId, from, to,
-                summary.Opening, summary.TotalIn, summary.TotalOut, summary.Closing, summary.TotalCount,
-                request.SafePage, request.SafePageSize, rows);
-        }
-
-        private sealed class SummaryRow
-        {
-            public int TotalCount { get; set; }
-            public decimal Opening { get; set; }
-            public decimal TotalIn { get; set; }
-            public decimal TotalOut { get; set; }
-            public decimal Closing { get; set; }
-        }
-
-        private sealed class Row
-        {
-            public long Id { get; set; }
-            public DateTime OccurredAt { get; set; }
-            public int DocumentId { get; set; }
-            public string DocumentCode { get; set; } = string.Empty;
-            public DocumentType DocumentType { get; set; }
-            public MovementType MovementType { get; set; }
-            public int WarehouseId { get; set; }
-            public string WarehouseCode { get; set; } = string.Empty;
-            public decimal InQty { get; set; }
-            public decimal OutQty { get; set; }
-            public decimal Balance { get; set; }
-        }
+        public Task<KardexDto> Handle(GetKardexQuery request, CancellationToken ct) =>
+            reader.ReadAsync(request.ProductId, request.WarehouseId, request.From, request.To, request.SafePage, request.SafePageSize, ct);
     }
 }
 

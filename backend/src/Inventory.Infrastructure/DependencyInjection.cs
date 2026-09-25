@@ -1,4 +1,5 @@
 using Inventory.Application.Common.Interfaces;
+using Inventory.Infrastructure.BackgroundJobs;
 using Inventory.Infrastructure.Caching;
 using Inventory.Infrastructure.Commons;
 using Inventory.Infrastructure.Logging;
@@ -53,6 +54,7 @@ public static class DependencyInjection
             services.AddDistributedMemoryCache();
         }
         services.AddSingleton<ICacheService, DistributedCacheService>();
+        services.AddSingleton<ISpreadsheetService, ClosedXmlSpreadsheetService>();
 
         // --- Security ---
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
@@ -77,6 +79,7 @@ public static class DependencyInjection
         {
             services.AddHostedService<ApiLogWriterService>();
             services.AddHostedService<ApiLogCleanupService>();
+            services.AddHostedService<LowStockAlertService>();
         }
 
         return services;

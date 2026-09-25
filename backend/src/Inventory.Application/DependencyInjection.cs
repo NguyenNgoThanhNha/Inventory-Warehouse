@@ -3,7 +3,9 @@ using Inventory.Application.Common.Behaviors;
 using Inventory.Application.Common.Caching;
 using Inventory.Application.Common.Models;
 using Inventory.Application.Features.V1.Auth.Services;
+using Inventory.Application.Features.V1.Reports.Services;
 using Inventory.Application.Features.V1.Stock.Services;
+using Inventory.Application.Features.V1.StockAlerts.Services;
 using Inventory.Application.Features.V1.StockDocuments.Services;
 using Mapster;
 using Microsoft.Extensions.Configuration;
@@ -28,11 +30,13 @@ public static class DependencyInjection
         TypeAdapterConfig.GlobalSettings.Scan(assembly);
 
         services.Configure<AppOptions>(configuration.GetSection(AppOptions.SectionName));
+        services.Configure<StockAlertOptions>(configuration.GetSection(StockAlertOptions.SectionName));
 
         services.AddScoped<IAuthTokenIssuer, AuthTokenIssuer>();
         services.AddScoped<ICurrentUserDtoFactory, CurrentUserDtoFactory>();
 
         services.AddScoped<ICatalogCache, CatalogCache>();
+        services.AddScoped<IKardexReader, KardexReader>();
 
         // Kho: mọi thay đổi tồn đi qua IStockLedger.
         services.AddScoped<IStockLedger, StockLedger>();

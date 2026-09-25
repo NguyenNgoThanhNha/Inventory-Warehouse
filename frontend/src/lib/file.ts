@@ -17,3 +17,12 @@ export function saveBlob(blob: Blob, fileName: string) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+/** Filename from `Content-Disposition` (RFC 5987 `filename*=UTF-8''...` first, then plain `filename=`). */
+export function fileNameFromDisposition(header: string | undefined | null, fallback: string): string {
+  if (!header) return fallback;
+  const star = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (star) return decodeURIComponent(star[1].trim());
+  const plain = /filename="?([^";]+)"?/i.exec(header);
+  return plain ? plain[1].trim() : fallback;
+}

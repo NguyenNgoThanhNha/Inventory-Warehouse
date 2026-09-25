@@ -140,6 +140,8 @@ Mức độ: **[BẮT BUỘC]** = vi phạm thì không merge · **[NÊN]** = l�
 | 12.6 | **[BẮT BUỘC]** Ghi sổ (duyệt) cần quyền `U` của loại phiếu; tạo phiếu kèm `post: true` cũng phải kiểm tra quyền `U` đó. |
 | 12.7 | **[BẮT BUỘC]** Chỉ cache dữ liệu ít đổi (danh mục) hoặc chấp nhận trễ (dashboard, ghi rõ TTL). **Không** cache tồn kho dùng để kiểm tra khi xuất/chuyển. Lệnh sửa danh mục phải gọi `ICatalogCache.InvalidateAsync()` **sau** `SaveChangesAsync`. Key cache khai trong `ConstCacheKey`. |
 | 12.8 | **[BẮT BUỘC]** Báo cáo theo ngày cắt ngày theo `App:TimeZoneId` (`BusinessDate`), không theo ngày UTC. |
+| 12.9 | **[BẮT BUỘC]** Import Excel: (a) đọc qua `ISpreadsheetService`, không dùng thư viện Excel trong Application; (b) kiểm tra toàn bộ file trước, lỗi trả theo dòng (`RowErrorDto`: số dòng Excel + cột + lý do), dòng lỗi bỏ qua; (c) có chế độ `dryRun`; (d) được ghi theo lô (`SaveChanges` + `ClearChangeTracker` mỗi lô) — ngoại lệ duy nhất của 3.2 — **chỉ khi** thao tác là upsert idempotent (chạy lại cùng file cho cùng kết quả); (e) giới hạn số dòng và dung lượng. Chứng từ kho KHÔNG import thẳng vào sổ: chỉ đọc thành dòng cho form, người dùng lưu qua luồng tạo phiếu bình thường. |
+| 12.10 | **[BẮT BUỘC]** Job nền: lấy service Scoped qua `IServiceScopeFactory`, logic nằm trong Command (test được), lỗi một lần chạy chỉ log, không làm chết job; phải idempotent và an toàn khi chạy nhiều instance (ràng buộc unique trong DB, không chỉ kiểm tra trong code). |
 
 ---
 

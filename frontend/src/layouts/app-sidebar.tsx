@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import type { LucideIcon } from 'lucide-react';
-import { ArrowDownToLine, BookOpen, LayoutDashboard, ArrowLeftRight, ArrowUpFromLine, Boxes, ClipboardCheck, FileClock, Package, Settings, Warehouse } from 'lucide-react';
+import { ArrowDownToLine, BellRing, BookOpen, LayoutDashboard, ArrowLeftRight, ArrowUpFromLine, Boxes, ClipboardCheck, FileClock, Package, Settings, Warehouse } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -29,6 +29,7 @@ export const NAV_MAIN: NavItem[] = [
   { to: '/dashboard', label: 'Tổng quan', icon: LayoutDashboard, anyOf: PERMISSIONS.stock },
   { to: '/stock', label: 'Tồn kho', icon: Boxes, anyOf: PERMISSIONS.stock },
   { to: '/kardex', label: 'Thẻ kho', icon: BookOpen, anyOf: PERMISSIONS.stock },
+  { to: '/alerts', label: 'Cảnh báo tồn', icon: BellRing, anyOf: PERMISSIONS.stock },
   { to: '/goods-receipts', label: 'Nhập kho', icon: ArrowDownToLine, anyOf: PERMISSIONS.goodsReceipts },
   { to: '/goods-issues', label: 'Xuất kho', icon: ArrowUpFromLine, anyOf: PERMISSIONS.goodsIssues },
   { to: '/transfers', label: 'Chuyển kho', icon: ArrowLeftRight, anyOf: PERMISSIONS.transfers },

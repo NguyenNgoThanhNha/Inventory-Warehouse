@@ -35,6 +35,7 @@ public class InventoryDbContext(DbContextOptions<InventoryDbContext> options) : 
     public DbSet<StockDocumentLine> StockDocumentLines => Set<StockDocumentLine>();
     public DbSet<DocumentSequence> DocumentSequences => Set<DocumentSequence>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
+    public DbSet<StockAlert> StockAlerts => Set<StockAlert>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

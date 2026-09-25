@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
+import { toast } from 'sonner';
 import { Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -7,8 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ProductPicker } from '@/features/catalog';
 import { formatMoney, formatQty, formatSigned } from '@/lib/format';
-import type { DocumentType } from '@/types';
-import { emptyLine, MAX_LINES, type DocumentFormValues } from '../schemas';
+import { RowErrors } from '@/components/common/row-errors';
+import type { DocumentType, ParsedLinesDto, RowErrorDto } from '@/types';
+import { emptyLine, MAX_LINES, type DocumentFormValues, type DocumentLineValues } from '../schemas';
+import { ImportLinesButton } from './import-lines-button';
 
 interface LinesEditorProps {
   type: DocumentType;
@@ -22,7 +26,33 @@ interface LinesEditorProps {
 /** Editable document lines (RHF field array). Columns depend on the document type. */
 export function LinesEditor({ type, available, availableLoading, overStock }: LinesEditorProps) {
   const { control, setValue, getValues } = useFormContext<DocumentFormValues>();
-  const { fields, append, remove } = useFieldArray({ control, name: 'lines' });
+  const { fields, append, remove, replace } = useFieldArray({ control, name: 'lines' });
+  const [importErrors, setImportErrors] = useState<RowErrorDto[]>([]);
+
+  /** Keep the lines already typed, append the imported ones; a product already in the form is reported, not duplicated. */
+  const mergeImported = ({ lines: parsed, errors }: ParsedLinesDto) => {
+    const current = getValues('lines').filter((l) => l.product);
+    const taken = new Set(current.map((l) => l.product!.id));
+    const duplicates: RowErrorDto[] = [];
+    const added: DocumentLineValues[] = [];
+    for (const p of parsed) {
+      if (taken.has(p.productId)) {
+        duplicates.push({ row: p.row, column: 'SKU', message: `${p.sku} đã có trong phiếu — bỏ qua.` });
+        continue;
+      }
+      taken.add(p.productId);
+      added.push({
+        product: { id: p.productId, sku: p.sku, name: p.productName, unit: p.unit, cost: p.productCost },
+        quantity: String(p.quantity),
+        unitCost: isReceipt ? String(p.unitCost ?? p.productCost) : '',
+        note: p.note ?? '',
+      });
+    }
+    const merged = [...current, ...added].slice(0, MAX_LINES);
+    replace(merged.length ? merged : [emptyLine()]);
+    setImportErrors([...errors, ...duplicates].sort((a, b) => a.row - b.row));
+    if (added.length) toast.success(`Đã thêm ${added.length} dòng từ Excel`);
+  };
   const lines = useWatch({ control, name: 'lines' });
 
   const showAvailable = type !== 'GoodsReceipt';
@@ -199,9 +229,13 @@ export function LinesEditor({ type, available, availableLoading, overStock }: Li
           </TableFooter>
         </Table>
       </div>
-      <Button type="button" variant="outline" size="sm" disabled={fields.length >= MAX_LINES} onClick={() => append(emptyLine())}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="outline" size="sm" disabled={fields.length >= MAX_LINES} onClick={() => append(emptyLine())}>
         <Plus /> Thêm dòng
       </Button>
+        <ImportLinesButton type={type} onParsed={mergeImported} />
+      </div>
+      <RowErrors errors={importErrors} title={importErrors.length ? `${new Set(importErrors.map((e) => e.row)).size} dòng trong file không được thêm` : undefined} />
     </div>
   );
 }

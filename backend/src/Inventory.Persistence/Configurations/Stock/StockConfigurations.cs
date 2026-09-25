@@ -124,3 +124,21 @@ public class IdempotencyRecordConfiguration : IEntityTypeConfiguration<Idempoten
         builder.HasIndex(x => new { x.UserId, x.Key }).IsUnique();
     }
 }
+
+public class StockAlertConfiguration : IEntityTypeConfiguration<StockAlert>
+{
+    public void Configure(EntityTypeBuilder<StockAlert> builder)
+    {
+        builder.ToTable("StockAlerts");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.QuantityAtAlert).Quantity();
+        builder.Property(x => x.MinThreshold).Quantity();
+        builder.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => x.WarehouseId).OnDelete(DeleteBehavior.Restrict);
+
+        // Tối đa một cảnh báo ĐANG MỞ cho mỗi (sản phẩm, kho): chặn trùng khi nhiều instance cùng quét.
+        builder.HasIndex(x => new { x.ProductId, x.WarehouseId }).IsUnique().HasFilter("[IsResolved] = 0 AND [IsDeleted] = 0");
+        // Màn danh sách: cảnh báo đang mở, mới nhất trước.
+        builder.HasIndex(x => new { x.IsResolved, x.CreatedDate }).IncludeProperties(x => new { x.WarehouseId, x.IsDeleted });
+    }
+}

@@ -15,6 +15,7 @@ namespace Inventory.Application.Features.V1.Stock.DTOs
 namespace Inventory.Application.Features.V1.Stock.Queries
 {
     using Inventory.Application.Features.V1.Stock.DTOs;
+    using Inventory.Application.Features.V1.Stock.Services;
     using Inventory.Domain.Entities.Catalog;
     using Inventory.Domain.Entities.Stock;
 
@@ -39,21 +40,7 @@ namespace Inventory.Application.Features.V1.Stock.Queries
     {
         public async Task<PagedResult<StockRowDto>> Handle(SearchStockQuery request, CancellationToken ct)
         {
-            var levels = unitOfWork.Repository<StockLevel>().AsNoTracking();
-            if (request.WarehouseId is { } warehouseId) levels = levels.Where(s => s.WarehouseId == warehouseId);
-
-            var products = unitOfWork.Repository<Product>().AsNoTracking();
-            if (!string.IsNullOrWhiteSpace(request.Search))
-            {
-                var term = request.Search.Trim();
-                var sku = Product.NormalizeSku(term);
-                products = products.Where(p => p.Sku.StartsWith(sku) || p.Name.Contains(term));
-            }
-            if (request.GroupId is { } groupId) products = products.Where(p => p.GroupId == groupId);
-            if (request.WarehouseId is not null) products = products.Where(p => levels.Any(s => s.ProductId == p.Id));
-            else products = products.Where(p => p.IsActive || levels.Any(s => s.ProductId == p.Id && s.Quantity > 0));
-            if (request.BelowThreshold)
-                products = products.Where(p => levels.Any(s => s.ProductId == p.Id && s.MinThreshold > 0 && s.Quantity < s.MinThreshold));
+            var (products, levels) = StockSearch.Build(unitOfWork, request.WarehouseId, request.GroupId, request.Search, request.BelowThreshold);
 
             var total = await products.CountAsync(ct);
             var page = await products.OrderBy(p => p.Sku)

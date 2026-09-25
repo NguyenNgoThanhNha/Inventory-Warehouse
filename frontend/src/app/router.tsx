@@ -13,6 +13,7 @@ const CatalogPage = lazy(() => import('@/features/catalog').then((m) => ({ defau
 const SettingsPage = lazy(() => import('@/features/settings').then((m) => ({ default: m.SettingsPage })));
 const DashboardPage = lazy(() => import('@/features/reports').then((m) => ({ default: m.DashboardPage })));
 const KardexPage = lazy(() => import('@/features/reports').then((m) => ({ default: m.KardexPage })));
+const StockAlertsPage = lazy(() => import('@/features/stock-alerts').then((m) => ({ default: m.StockAlertsPage })));
 const ApiLogsPage = lazy(() => import('@/features/api-logs').then((m) => ({ default: m.ApiLogsPage })));
 
 /** /goods-receipts, /goods-receipts/new, /goods-receipts/:id … for each document type, gated by its activity. */
@@ -59,6 +60,7 @@ export const routes: RouteObject[] = [
               { path: '/dashboard', element: <DashboardPage /> },
               { path: '/stock', element: <StockPage /> },
               { path: '/kardex', element: <KardexPage /> },
+              { path: '/alerts', element: <StockAlertsPage /> },
             ],
           },
           ...documentRoutes,

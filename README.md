@@ -15,7 +15,7 @@ Trọng tâm: **tồn kho không bao giờ sai hoặc âm khi nhiều người t
 | 8 (một phần) | Idempotency-Key; unit test logic tồn; integration test concurrency | ✅ |
 | 5 | FE: bảng tồn kho lớn (virtualized, server-side), form phiếu, danh mục | ✅ |
 | 6 | Kardex (SP + window function) + dashboard (SP, 6 bảng) + cache Redis | ✅ |
-| 7 | Import/Export Excel theo batch + job cảnh báo tồn thấp | ⏳ |
+| 7 | Import/Export Excel theo lô (báo lỗi từng dòng) + job cảnh báo tồn thấp | ✅ |
 | 9 | Docker compose (API + SQL + Redis + FE) xong; còn deploy + diagram | ⏳ |
 
 ## Chạy local
@@ -101,6 +101,22 @@ Controller [HasPermission GOODS_ISSUE:C]
   - Có `ConnectionStrings:Redis` thì dùng Redis (timeout 500 ms); không có thì dùng bộ nhớ trong tiến trình.
   - Redis lỗi hay chậm thì log cảnh báo rồi đọc thẳng DB, request không bị lỗi (có unit test).
 
+## Import / Export Excel & cảnh báo tồn thấp
+
+- **Import sản phẩm** (Danh mục → Import Excel; cần `IMPORT_EXPORT:C` **và** `PRODUCT:C`).
+  - Bước 1 là **kiểm tra** (dry run): không ghi gì, liệt kê mọi dòng lỗi (số dòng Excel, cột, lý do). Bước 2 mới import các dòng hợp lệ.
+  - Upsert theo SKU: SKU đã có thì cập nhật, chưa có thì thêm; nhóm hàng chưa có sẽ được tạo. Import lại cùng một file là an toàn, không nhân đôi.
+  - Ghi theo **lô 500 dòng**, mỗi lô một `SaveChanges` rồi xóa change tracker. Đây là ngoại lệ có chủ đích với RULES 3.2 (xem 12.9).
+  - Đo 10.000 dòng (có 10 dòng lỗi): kiểm tra 1,65 s; tạo mới 9.990 mã 6,7 s (lần gọi đầu, gồm cả khởi động); import lại (toàn cập nhật) 2,9 s. Giới hạn 20.000 dòng / 5 MB.
+  - Tiêu đề cột so khớp không phân biệt hoa thường và dấu. Ô số được lấy đúng giá trị số. Ô chữ đọc theo thói quen Việt Nam: `35.000` là 35 nghìn, `1,5` là một phẩy năm.
+- **Nhập dòng phiếu từ Excel** (nút trong form lập phiếu): chỉ đọc file, tra sản phẩm và báo dòng lỗi, không ghi gì. Các dòng hợp lệ được đổ vào form; sản phẩm đã có sẵn trong phiếu thì bỏ qua và báo lại.
+- **Export**: tồn kho (dùng đúng bộ lọc của màn Tồn kho, qua `StockSearch`) và thẻ kho, thời gian ghi theo giờ địa phương. Tối đa 100.000 dòng mỗi file. Đo: xuất 22k dòng tồn mất 1,7 s.
+- **Cảnh báo tồn thấp**: `LowStockAlertService` (BackgroundService) quét mỗi `StockAlerts:ScanIntervalSeconds` (mặc định 300 s).
+  - Tồn xuống dưới ngưỡng → mở `StockAlert`; tồn hồi lại hoặc ngưỡng bị bỏ → đóng.
+  - Mỗi (sản phẩm, kho) có tối đa một cảnh báo đang mở, nhờ unique filtered index. Nhờ vậy nhiều instance cùng chạy job cũng không sinh cảnh báo trùng.
+  - Thông báo gửi cho người có `WAREHOUSE:U`, **một thông báo tóm tắt cho mỗi kho** chứ không gửi từng mặt hàng. Bấm vào thông báo sẽ mở màn Tồn kho đã lọc sẵn hàng sắp hết của kho đó.
+  - Có trang `/alerts` và nút "Quét ngay".
+
 ## API
 
 | Method | Route | Quyền |
@@ -110,6 +126,11 @@ Controller [HasPermission GOODS_ISSUE:C]
 | GET | `/api/v1/reports/dashboard?warehouseId=` | STOCK_REPORT:R |
 | GET | `/api/v1/reports/kardex?productId=&warehouseId=&from=&to=&page=&pageSize=` | STOCK_REPORT:R |
 | PUT | `/api/v1/stock/threshold` | WAREHOUSE:U |
+| POST | `/api/v1/imports/products?dryRun=` (multipart `file`) | IMPORT_EXPORT:C + PRODUCT:C |
+| POST | `/api/v1/imports/document-lines?type=` (multipart `file`) | C của loại phiếu |
+| GET | `/api/v1/imports/templates/{kind}` (`Products`, `DocumentLines`) | đăng nhập |
+| GET | `/api/v1/exports/stock?…` · `/api/v1/exports/kardex?…` | IMPORT_EXPORT:R + STOCK_REPORT:R |
+| GET / POST | `/api/v1/stock-alerts?isResolved=&warehouseId=` · `/api/v1/stock-alerts/scan` | STOCK_REPORT:R · WAREHOUSE:U |
 | GET/POST | `/api/v1/goods-receipts` · `goods-issues` · `transfers` · `stock-takes` | R / C (+U nếu `post: true`) |
 | GET | `/api/v1/<loại phiếu>/{id}` | R |
 | POST | `/api/v1/<loại phiếu>/{id}/post` · `/{id}/cancel` (body `{ rowVersion }`) | U / D |

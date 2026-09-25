@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ExportButton } from '@/components/common/export-button';
 import { PageHeader } from '@/components/common/page-header';
 import { useProductGroups, useWarehouses } from '@/features/catalog';
 import { useDebouncedCallback } from '@/lib/hooks/use-debounced-callback';
@@ -39,6 +40,7 @@ export function StockPage() {
   const canEditThreshold = useCan('WAREHOUSE', 'U');
   const canReceive = useCan('GOODS_RECEIPT', 'C');
   const canIssue = useCan('GOODS_ISSUE', 'C');
+  const canExport = useCan('IMPORT_EXPORT', 'R');
   const [threshold, setThreshold] = useState<ThresholdTarget | null>(null);
   const debouncedSearch = useDebouncedCallback((v: string) => update({ search: v.trim() }));
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = stock;
@@ -51,6 +53,7 @@ export function StockPage() {
         description="Tồn hiện tại theo từng kho. Bấm vào ô số lượng để đặt ngưỡng tồn tối thiểu."
         actions={
           <>
+            {canExport && <ExportButton url="/exports/stock" params={query} fallbackName="ton-kho.xlsx" />}
             {canReceive && (
               <Button variant="outline" asChild>
                 <Link to="/goods-receipts/new">

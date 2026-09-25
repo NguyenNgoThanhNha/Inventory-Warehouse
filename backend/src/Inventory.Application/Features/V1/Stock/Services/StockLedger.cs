@@ -95,3 +95,31 @@ public sealed class StockLedger(IUnitOfWork<InventoryDbContext> unitOfWork, IAud
         return shortages.Select(s => s with { Sku = skus.GetValueOrDefault(s.ProductId) }).ToList();
     }
 }
+
+/// <summary>
+/// Bộ lọc dùng chung cho màn Tồn kho và file Excel xuất tồn kho — hai nơi phải ra đúng cùng một tập sản phẩm.
+/// </summary>
+public static class StockSearch
+{
+    public static (IQueryable<Product> Products, IQueryable<StockLevel> Levels) Build(
+        IUnitOfWork<InventoryDbContext> unitOfWork, int? warehouseId, int? groupId, string? search, bool belowThreshold)
+    {
+        var levels = unitOfWork.Repository<StockLevel>().AsNoTracking();
+        if (warehouseId is { } wid) levels = levels.Where(s => s.WarehouseId == wid);
+
+        var products = unitOfWork.Repository<Product>().AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            var sku = Product.NormalizeSku(term);
+            products = products.Where(p => p.Sku.StartsWith(sku) || p.Name.Contains(term));
+        }
+        if (groupId is { } gid) products = products.Where(p => p.GroupId == gid);
+        // Một kho: SP có dòng tồn ở kho đó. Mọi kho: SP đang kinh doanh, hoặc đã ngừng nhưng vẫn còn hàng.
+        if (warehouseId is not null) products = products.Where(p => levels.Any(s => s.ProductId == p.Id));
+        else products = products.Where(p => p.IsActive || levels.Any(s => s.ProductId == p.Id && s.Quantity > 0));
+        if (belowThreshold)
+            products = products.Where(p => levels.Any(s => s.ProductId == p.Id && s.MinThreshold > 0 && s.Quantity < s.MinThreshold));
+        return (products, levels);
+    }
+}

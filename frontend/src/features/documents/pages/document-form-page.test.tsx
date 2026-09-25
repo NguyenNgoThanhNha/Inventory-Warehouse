@@ -107,3 +107,36 @@ describe('DocumentFormPage (phiếu xuất)', () => {
     expect(screen.getByText('Chọn sản phẩm')).toBeInTheDocument();
   });
 });
+
+describe('DocumentFormPage — nhập dòng từ Excel', () => {
+  it('appends parsed lines, keeps typed lines, and reports rows that were not added', async () => {
+    loginAs(managerUser);
+    server.use(
+      http.post(`${API}/imports/document-lines`, ({ request }) => {
+        expect(new URL(request.url).searchParams.get('type')).toBe('GoodsIssue');
+        return HttpResponse.json({
+          lines: [
+            { row: 2, productId: 1, sku: 'P001', productName: 'Ốc vít M6', unit: 'cái', productCost: 500, quantity: 30, unitCost: null, note: null },
+            { row: 3, productId: 2, sku: 'P002', productName: 'Bản lề inox', unit: 'cái', productCost: 35000, quantity: 5, unitCost: null, note: 'gấp' },
+          ],
+          errors: [{ row: 4, column: 'SKU', message: 'Không tìm thấy sản phẩm NOPE.' }],
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderIssueForm();
+    await fillHeader(user);
+    await pickProduct(user, 1, 'P002', /P002/); // P002 đã có trong phiếu → dòng Excel của P002 bị bỏ qua
+    await user.type(screen.getByLabelText('Số lượng dòng 1'), '2');
+
+    await user.upload(screen.getByLabelText('File Excel dòng hàng'), new File(['x'], 'lines.xlsx'));
+
+    expect(await screen.findByRole('combobox', { name: 'Sản phẩm dòng 2' })).toHaveTextContent('P001 — Ốc vít M6');
+    expect(screen.getByLabelText('Số lượng dòng 1')).toHaveValue(2);
+    expect(screen.getByLabelText('Số lượng dòng 2')).toHaveValue(30);
+    expect(screen.queryByRole('combobox', { name: 'Sản phẩm dòng 3' })).not.toBeInTheDocument();
+    const errors = screen.getByRole('region', { name: 'Lỗi từng dòng' });
+    expect(within(errors).getByText('Không tìm thấy sản phẩm NOPE.')).toBeInTheDocument();
+    expect(within(errors).getByText('P002 đã có trong phiếu — bỏ qua.')).toBeInTheDocument();
+  });
+});

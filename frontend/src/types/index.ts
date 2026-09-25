@@ -479,3 +479,62 @@ export interface DashboardDto {
   inOutByDay: { date: string; inValue: number; outValue: number }[];
   slowMoving: { productId: number; sku: string; name: string; quantity: number; value: number; lastOutAt: string | null }[];
 }
+
+// ---- Import / export / alerts ----
+export interface RowErrorDto {
+  /** row number as seen in Excel */
+  row: number;
+  column: string | null;
+  message: string;
+}
+
+export interface ImportProductsResultDto {
+  dryRun: boolean;
+  totalRows: number;
+  validRows: number;
+  created: number;
+  updated: number;
+  groupsCreated: string[];
+  errors: RowErrorDto[];
+}
+
+export interface ParsedLineDto {
+  row: number;
+  productId: number;
+  sku: string;
+  productName: string;
+  unit: string;
+  productCost: number;
+  quantity: number;
+  unitCost: number | null;
+  note: string | null;
+}
+
+export interface ParsedLinesDto {
+  lines: ParsedLineDto[];
+  errors: RowErrorDto[];
+}
+
+export type ImportTemplateKind = 'Products' | 'DocumentLines';
+
+export interface StockAlertDto {
+  id: number;
+  productId: number;
+  sku: string;
+  productName: string;
+  warehouseId: number;
+  warehouseCode: string;
+  quantityAtAlert: number;
+  currentQuantity: number | null;
+  minThreshold: number;
+  createdAt: string;
+  isResolved: boolean;
+  resolvedAt: string | null;
+}
+
+export interface ScanLowStockResultDto {
+  opened: number;
+  resolved: number;
+  stillOpen: number;
+  notified: number;
+}
