@@ -1,0 +1,113 @@
+# Inventory / Warehouse Management
+
+Dự án #2 trong roadmap ([spec](../../Roadmap/projects/02-Inventory-Warehouse.md)). Backend copy template từ [Dự án #1](../Helpdesk-Ticketing/backend), giữ nguyên auth, phân quyền 6 bảng, `IUnitOfWork<TContext>` và log API; phần viết thêm là `Features/V1/<nghiệp vụ kho>`. Luật code: [backend/RULES.md](backend/RULES.md) (mục 12 là luật riêng cho tồn kho).
+
+Trọng tâm: **tồn kho không bao giờ sai hoặc âm khi nhiều người thao tác cùng lúc.**
+
+## Tiến độ theo lộ trình
+
+| Tuần | Nội dung | Trạng thái |
+|---|---|---|
+| 1 | Copy template, activity kho, domain + schema, migration | ✅ |
+| 2 | Phiếu nhập + StockMovement + cập nhật tồn | ✅ |
+| 3 | Phiếu xuất + optimistic concurrency + chống tồn âm | ✅ |
+| 4 | Chuyển kho (nguyên tử) + kiểm kê + audit | ✅ |
+| 8 (một phần) | Idempotency-Key; unit test logic tồn; integration test concurrency | ✅ |
+| 5 | FE: bảng tồn kho lớn (virtualized, server-side), form phiếu, danh mục | ✅ |
+| 6 | Kardex (SP + window function) + dashboard + Redis cache | ⏳ |
+| 7 | Import/Export Excel theo batch + job cảnh báo tồn thấp | ⏳ |
+| 9 | Docker (API + SQL + FE xong; còn Redis), deploy, diagram | ⏳ |
+
+## Chạy local
+
+Cần .NET SDK 10 và SQL Server (mặc định `.\MSSQLSERVER01`, Windows auth; sửa trong `backend/src/Inventory.Api/appsettings.Development.json`).
+
+```bash
+cd backend && dotnet run --project src/Inventory.Api --urls http://localhost:5090
+```
+
+Swagger: http://localhost:5090/swagger. Ở môi trường Development, app tự **migrate + seed**: activity, role, 3 kho, 18 sản phẩm, 2 nhà cung cấp, phiếu nhập tồn đầu kỳ cho kho A và B, ngưỡng tối thiểu (có sẵn vài mã dưới ngưỡng).
+
+| Email | Mật khẩu | Role | Được làm gì |
+|---|---|---|---|
+| admin@inventory.local | Admin@123 | Admin | Toàn quyền |
+| manager@inventory.local | Manager@123 | Manager | Lập + **duyệt/ghi sổ** phiếu, đặt ngưỡng, xem báo cáo |
+| staff@inventory.local, staff2@inventory.local | Staff@123 | Staff | Lập phiếu **nháp**, xem tồn |
+
+Frontend (React 19 + TS, Vite, shadcn/ui, TanStack Query + Table + Virtual, RHF + Zod; cấu trúc feature-based như Helpdesk):
+
+```bash
+cd frontend && npm install && npm run dev
+```
+
+FE: http://localhost:5174 (Vite proxy `/api` → `:5090`). Chạy toàn bộ bằng Docker: `docker compose up --build` → FE http://localhost:8091, API http://localhost:8090/swagger.
+
+## Frontend
+
+| Màn | Điểm chính |
+|---|---|
+| Tồn kho `/stock` | Bảng **virtualized**, cuộn tới đâu tải thêm trang tới đó (infinite query, server trả 100 dòng mỗi trang). Mỗi kho một cột; dòng dưới ngưỡng tô đỏ; bấm ô số lượng để đặt ngưỡng (cần WAREHOUSE:U). Bộ lọc lưu trên URL. |
+| Lập phiếu `/<loại>/new` | Một form dùng cho 4 loại phiếu. Mỗi dòng hiện **tồn hiện tại**; vượt tồn thì tô đỏ và khóa nút “Ghi sổ”. Lỗi 409 kèm `shortages` từ server được gắn về đúng dòng. Mỗi phiên form dùng một `Idempotency-Key`, nên bấm hai lần hay gửi lại vẫn chỉ tạo một phiếu. |
+| Chi tiết phiếu `/<loại>/:id` | Ghi sổ hoặc hủy phiếu nháp, gửi kèm `rowVersion`. Phiếu kiểm kê hiện tồn sổ sách và chênh lệch. |
+| Danh mục `/catalog` | Sản phẩm (tìm phía server), nhóm hàng, kho, nhà cung cấp. |
+
+**Dữ liệu lớn:** `Database:SeedBulkProducts` (Development = 12000) seed thêm 12.000 mã, kèm phiếu nhập tồn đầu kỳ đi qua StockLedger. Đo trên 12.018 mã sau khi warm-up: `GET /stock` với mọi kiểu lọc (trang 1, trang 100, theo kho, theo nhóm, dưới ngưỡng, tìm SKU) đều mất 15–70 ms, nên chưa cần stored procedure (RULES 3.11). Trên trình duyệt: đã tải 1.600 dòng nhưng DOM chỉ giữ khoảng 40 dòng.
+
+## Test
+
+```bash
+cd backend && dotnet test tests/Inventory.UnitTests
+```
+
+Integration test chạy trên SQL Server thật. Có Docker thì tự dùng Testcontainers; không có thì trỏ vào SQL Server local (mỗi lần chạy tạo DB tạm rồi xóa):
+
+```bash
+cd backend && TEST_SQL_CONNECTION="Server=.\MSSQLSERVER01;Trusted_Connection=True;TrustServerCertificate=True" dotnet test tests/Inventory.IntegrationTests
+```
+
+```bash
+cd frontend && npm test -- --run
+```
+
+## Thiết kế tồn kho
+
+```text
+Controller [HasPermission GOODS_ISSUE:C]
+  → Validation → ConflictRetryBehavior (thử lại khi xung đột) → CreateGoodsIssueCommandHandler
+      → StockDocumentWriter: Idempotency-Key, số chứng từ (DocumentSequence), dòng hàng, ghi sổ nếu post=true (cần GOODS_ISSUE:U)
+          → StockDocumentPoster: phiếu → danh sách StockChange
+              → StockLedger: đọc StockLevel (1 query) → kiểm tra đủ hàng mọi dòng → Adjust → StockMovement
+      → SaveChangesAsync (MỘT lần = một transaction)
+```
+
+- **Một nơi duy nhất đổi tồn:** `StockLedger`. Mỗi thay đổi sinh một `StockMovement` (sổ cái bất biến), nên tổng movement luôn bằng tồn.
+- **Chống bán vượt (oversell):** `StockLevel.RowVersion`. Hai phiếu cùng trừ một dòng thì phiếu lưu sau nhận `DbUpdateConcurrencyException`. `ConflictRetryBehavior` xóa change tracker và chạy lại handler: tồn được đọc lại, phiếu hoặc thành công với tồn mới, hoặc bị chặn bằng 409 kèm `shortages` (dòng nào thiếu, còn bao nhiêu).
+- **Tồn không âm, 3 lớp:** kiểm tra trong ledger, `StockLevel.Adjust`, và CHECK constraint `CK_StockLevels_Quantity_NonNegative` trong DB.
+- **Chuyển kho nguyên tử:** trừ kho A và cộng kho B nằm trong cùng một `SaveChangesAsync`.
+- **Idempotency:** header `Idempotency-Key` được lưu cùng lần save với phiếu, có unique index `(UserId, Key)`. Request trùng, kể cả gửi song song, đều trả về cùng một phiếu.
+- **Vòng đời phiếu:** `Draft → Posted` (tồn đổi, bất biến) hoặc `Draft → Cancelled`. Duyệt và hủy phải gửi `rowVersion` của phiếu.
+
+Đã đo trên SQL Server thật: 6 phiếu xuất × 3 cái bắn song song vào SKU còn 10 → đúng 3 phiếu `201`, 3 phiếu `409`, tồn còn 1, tổng sổ cái = 1 (xem `StockConcurrencyTests`).
+
+## API
+
+| Method | Route | Quyền |
+|---|---|---|
+| GET | `/api/v1/stock?warehouseId=&groupId=&search=&belowThreshold=&page=&pageSize=` | STOCK_REPORT:R |
+| GET | `/api/v1/stock/available?warehouseId=&productIds=` | STOCK_REPORT:R |
+| PUT | `/api/v1/stock/threshold` | WAREHOUSE:U |
+| GET/POST | `/api/v1/goods-receipts` · `goods-issues` · `transfers` · `stock-takes` | R / C (+U nếu `post: true`) |
+| GET | `/api/v1/<loại phiếu>/{id}` | R |
+| POST | `/api/v1/<loại phiếu>/{id}/post` · `/{id}/cancel` (body `{ rowVersion }`) | U / D |
+| GET/POST/PUT/DELETE | `/api/v1/products`, `/product-groups`, `/warehouses`, `/suppliers` | PRODUCT / WAREHOUSE / SUPPLIER |
+| | `/auth/*`, `/users`, `/roles`, `/activities`, `/api-logs`, `/notifications` | như template |
+
+Ví dụ tạo phiếu xuất và ghi sổ luôn:
+
+```http
+POST /api/v1/goods-issues
+Idempotency-Key: 7f1c2e0a-issue-001
+
+{ "warehouseId": 1, "reason": "Sale", "note": "Đơn #123", "post": true,
+  "lines": [ { "productId": 1, "quantity": 30 }, { "productId": 6, "quantity": 10 } ] }
+```

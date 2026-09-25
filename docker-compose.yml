@@ -1,0 +1,36 @@
+# Chạy toàn bộ: docker compose up --build   →  FE http://localhost:8091 · API http://localhost:8090/swagger
+# (Redis sẽ được thêm ở tuần 6 của lộ trình.)
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${SA_PASSWORD:-Inventory@12345}"
+    ports: ["14331:1433"]
+    volumes: [sqldata:/var/opt/mssql]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      retries: 10
+
+  api:
+    build: ./backend
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: "Server=db,1433;Database=InventoryDb;User Id=sa;Password=${SA_PASSWORD:-Inventory@12345};TrustServerCertificate=True"
+      Jwt__Key: "${JWT_KEY:-compose-demo-secret-key-change-me-0123456789}"
+      Database__MigrateOnStartup: "true"
+      Database__SeedDemoData: "true"
+      Cors__Origins__0: "http://localhost:8091"
+      App__FrontendBaseUrl: "http://localhost:8091"
+    ports: ["8090:8080"]
+
+  web:
+    build: ./frontend
+    depends_on: [api]
+    ports: ["8091:80"]
+
+volumes:
+  sqldata:
