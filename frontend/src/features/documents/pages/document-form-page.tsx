@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
@@ -11,6 +11,7 @@ import { Form, FormField, FormItem, FormLabel, FormMessage } from '@/components/
 import { Combobox } from '@/components/common/combobox';
 import { REQUIRED_LABEL_CLASS, SelectFormField, TextareaFormField } from '@/components/common/form-fields';
 import { PageHeader } from '@/components/common/page-header';
+import { UnsavedChangesGuard } from '@/components/common/unsaved-changes-guard';
 import { useSuppliers, useWarehouses } from '@/features/catalog';
 import { useAvailableStock } from '@/features/stock';
 import { applyFieldErrors, getProblem, getStatus, showError } from '@/lib/api-errors';
@@ -29,6 +30,22 @@ import {
   toUpdateRequest,
   type DocumentFormValues,
 } from '../schemas';
+
+/** localStorage can be unavailable (private mode, blocked storage) — the form works without it. */
+const readLocal = (key: string) => {
+  try {
+    return localStorage.getItem(key) ?? undefined;
+  } catch {
+    return undefined;
+  }
+};
+const writeLocal = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // ignore: only a convenience
+  }
+};
 
 const HEADER_FIELDS = ['warehouseId', 'toWarehouseId', 'supplierId', 'reason', 'note', 'lines'] as const;
 
@@ -57,6 +74,22 @@ export function DocumentFormPage({ type, editing }: { type: DocumentType; editin
 
   const available = useAvailableStock(type === 'GoodsReceipt' ? undefined : warehouseId, productIds);
   const overStock = cfg.consumesStock ? findOverStock(lines, available.data) : new Map<number, number>();
+
+  // Nhớ kho dùng lần trước (mỗi loại phiếu) — thủ kho thường làm việc ở một kho.
+  const lastWarehouseKey = `inventory:last-warehouse:${type}`;
+  useEffect(() => {
+    if (editing || !warehouses.length || form.getValues('warehouseId')) return;
+    const remembered = readLocal(lastWarehouseKey);
+    const fallback = warehouses.length === 1 ? String(warehouses[0].id) : undefined;
+    const pick = warehouses.some((w) => String(w.id) === remembered) ? remembered : fallback;
+    if (pick) form.setValue('warehouseId', pick); // not dirty: a prefill is not a user change
+  }, [editing, warehouses, form, lastWarehouseKey]);
+
+  // Chặn rời trang khi đang nhập dở (đọc qua ref lúc điều hướng: lưu xong điều hướng ngay thì không bị chặn).
+  const saved = useRef(false);
+  const dirty = useRef(false);
+  dirty.current = form.formState.isDirty;
+  const shouldBlock = useCallback(() => dirty.current && !saved.current, []);
 
   const warehouseOptions = warehouses.map((w) => ({ value: String(w.id), label: `${w.code} — ${w.name}` }));
 
@@ -87,6 +120,7 @@ export function DocumentFormPage({ type, editing }: { type: DocumentType; editin
           { id: editing.id, body: toUpdateRequest(type, values, editing.rowVersion) },
           {
             onSuccess: (doc) => {
+              saved.current = true;
               toast.success(`Đã lưu ${doc.code}`);
               navigate(`/${cfg.path}/${doc.id}`, { replace: true });
             },
@@ -99,6 +133,8 @@ export function DocumentFormPage({ type, editing }: { type: DocumentType; editin
         { body: toCreateRequest(type, values, post), idempotencyKey },
         {
           onSuccess: (doc) => {
+            saved.current = true;
+            writeLocal(lastWarehouseKey, values.warehouseId);
             toast.success(post ? `Đã ghi sổ ${doc.code}` : `Đã lưu nháp ${doc.code}`);
             navigate(`/${cfg.path}/${doc.id}`, { replace: true });
           },
@@ -109,6 +145,7 @@ export function DocumentFormPage({ type, editing }: { type: DocumentType; editin
 
   return (
     <div className="space-y-4">
+      <UnsavedChangesGuard shouldBlock={shouldBlock} />
       <PageHeader
         title={editing ? `Sửa ${cfg.noun} ${editing.code}` : `Lập ${cfg.noun}`}
         description={

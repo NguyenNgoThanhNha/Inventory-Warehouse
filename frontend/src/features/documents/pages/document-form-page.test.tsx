@@ -140,3 +140,34 @@ describe('DocumentFormPage — nhập dòng từ Excel', () => {
     expect(within(errors).getByText('P002 đã có trong phiếu — bỏ qua.')).toBeInTheDocument();
   });
 });
+
+describe('DocumentFormPage — nhập nhanh', () => {
+  it('scanning a SKU adds the product, scanning it again bumps the quantity, unknown codes are reported', async () => {
+    loginAs(managerUser);
+    const user = userEvent.setup();
+    renderIssueForm();
+    await fillHeader(user);
+    const scan = screen.getByLabelText('Quét mã hoặc nhập SKU');
+
+    await user.type(scan, 'p001{Enter}');
+    expect(await screen.findByText('Đã thêm P001 — Ốc vít M6')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Sản phẩm dòng 1' })).toHaveTextContent('P001 — Ốc vít M6');
+    expect(screen.getByLabelText('Số lượng dòng 1')).toHaveValue(1);
+    expect(scan).toHaveValue('');
+
+    await user.type(scan, 'P001{Enter}');
+    expect(await screen.findByText('P001: số lượng → 2')).toBeInTheDocument();
+    expect(screen.getByLabelText('Số lượng dòng 1')).toHaveValue(2);
+
+    await user.type(scan, 'NOPE{Enter}');
+    expect(await screen.findByText(/Không tìm thấy NOPE/)).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Sản phẩm dòng 2' })).not.toBeInTheDocument();
+  });
+
+  it('remembers the warehouse used for the last saved document of that type', async () => {
+    loginAs(managerUser);
+    localStorage.setItem('inventory:last-warehouse:GoodsIssue', '2');
+    renderIssueForm();
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Kho' })).toHaveTextContent('KHO-B'));
+  });
+});

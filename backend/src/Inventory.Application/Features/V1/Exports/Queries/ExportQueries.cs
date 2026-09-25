@@ -18,7 +18,8 @@ public static class ExportLimits
 }
 
 /// <summary>Xuất bảng tồn kho ra Excel với ĐÚNG bộ lọc của màn Tồn kho (<see cref="StockSearch"/>).</summary>
-public sealed record ExportStockQuery(int? WarehouseId, int? GroupId, string? Search, bool BelowThreshold) : IRequest<FileDto>;
+public sealed record ExportStockQuery(int? WarehouseId, int? GroupId, string? Search, bool BelowThreshold, StockSort Sort = StockSort.Sku)
+    : IRequest<FileDto>;
 
 public sealed class ExportStockQueryHandler(
     IUnitOfWork<InventoryDbContext> unitOfWork, ISpreadsheetService spreadsheet, IOptions<AppOptions> options, TimeProvider clock)
@@ -36,7 +37,7 @@ public sealed class ExportStockQueryHandler(
             .OrderBy(w => w.Code).Select(w => new { w.Id, w.Code }).ToListAsync(ct);
 
         // 2 query (sản phẩm, dòng tồn) rồi ghép trong bộ nhớ — không N+1, không Include.
-        var rows = await products.OrderBy(p => p.Sku)
+        var rows = await StockSearch.Order(products, levels, request.Sort)
             .Select(p => new { p.Id, p.Sku, p.Name, p.Unit, Group = p.Group.Name, p.Cost })
             .ToListAsync(ct);
         var qty = (await levels.Select(s => new { s.ProductId, s.WarehouseId, s.Quantity, s.MinThreshold }).ToListAsync(ct))

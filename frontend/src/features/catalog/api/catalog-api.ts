@@ -40,3 +40,11 @@ export const suppliersApi = {
   save: (id: number | null, body: SupplierRequest) =>
     (id ? api.put<SupplierDto>(`/suppliers/${id}`, body) : api.post<SupplierDto>('/suppliers', body)).then((r) => r.data),
 };
+
+/** Exact SKU lookup (quick add / barcode scan): active products only; null when not found. */
+export async function findProductBySku(sku: string): Promise<ProductDto | null> {
+  const normalized = sku.trim().toUpperCase();
+  if (!normalized) return null;
+  const page = await productsApi.list({ search: normalized, isActive: true, page: 1, pageSize: 5 });
+  return page.items.find((p) => p.sku === normalized) ?? null;
+}

@@ -59,6 +59,37 @@ describe('StockPage', () => {
     expect(screen.queryByText('P001')).not.toBeInTheDocument();
   });
 
+  it('sorts on the server from the column headers and keeps the sort in the URL', async () => {
+    loginAs(staffUser);
+    const sorts: (string | null)[] = [];
+    server.use(
+      http.get(`${API}/stock`, ({ request }) => {
+        sorts.push(new URL(request.url).searchParams.get('sort'));
+        return HttpResponse.json({ items: makeRows(3), totalCount: 3, page: 1, pageSize: 100 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<StockPage />, { path: '/stock', route: '/stock' });
+    const table = await screen.findByRole('table', { name: 'Tồn kho' });
+    await within(table).findByText('SKU00001');
+    const header = (name: RegExp) => within(table).getByRole('columnheader', { name });
+    expect(header(/Sản phẩm/)).toHaveAttribute('aria-sort', 'ascending');
+
+    await user.click(within(header(/Tổng/)).getByRole('button'));
+    expect(await screen.findByTestId('location')).toHaveTextContent('/stock?sort=TotalDesc');
+    expect(header(/Tổng/)).toHaveAttribute('aria-sort', 'descending');
+    expect(header(/Sản phẩm/)).toHaveAttribute('aria-sort', 'none');
+    expect(screen.getByRole('combobox', { name: 'Sắp xếp' })).toHaveTextContent('Tồn nhiều nhất');
+
+    await user.click(within(header(/Tổng/)).getByRole('button'));
+    expect(await screen.findByTestId('location')).toHaveTextContent('/stock?sort=TotalAsc');
+
+    await user.click(within(header(/Sản phẩm/)).getByRole('button'));
+    expect(await screen.findByTestId('location')).toHaveTextContent(/^\/stock$/);
+    await within(table).findByText('SKU00001');
+    expect(sorts.slice(0, 3)).toEqual([null, 'TotalDesc', 'TotalAsc']);
+  });
+
   it('virtualizes: renders only a window of a large result and loads the next page on scroll', async () => {
     loginAs(staffUser);
     const total = 12_000;

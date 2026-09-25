@@ -54,9 +54,10 @@ export function DashboardPage() {
           icon={<CircleDollarSign />}
           loading={loading}
         />
-        <Kpi title="Mã còn hàng" value={data?.productsInStock.toLocaleString('vi-VN') ?? '—'} icon={<Boxes />} loading={loading} to="/stock" />
+        <Kpi title="Mã còn hàng" hint="sản phẩm có tồn > 0" value={data?.productsInStock.toLocaleString('vi-VN') ?? '—'} icon={<Boxes />} loading={loading} to="/stock" />
         <Kpi
-          title="Dòng tồn dưới ngưỡng"
+          title="Dưới ngưỡng"
+          hint="dòng tồn (sản phẩm × kho)"
           value={data?.lowStockCount.toLocaleString('vi-VN') ?? '—'}
           icon={<TriangleAlert />}
           loading={loading}
@@ -64,14 +65,15 @@ export function DashboardPage() {
           to={`/stock?belowThreshold=true${warehouseId ? `&warehouseId=${warehouseId}` : ''}`}
         />
         <Kpi
-          title="Phiếu nháp chờ duyệt"
+          title="Chờ duyệt"
+          hint="phiếu nháp"
           value={data?.draftDocuments ?? '—'}
           icon={<FileClock />}
           loading={loading}
           tone={data?.draftDocuments ? 'warning' : undefined}
           to="/goods-issues?status=Draft"
         />
-        <Kpi title="Phiếu ghi sổ hôm nay" value={data?.postedToday ?? '—'} icon={<Send />} loading={loading} />
+        <Kpi title="Ghi sổ hôm nay" hint="phiếu" value={data?.postedToday ?? '—'} icon={<Send />} loading={loading} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">

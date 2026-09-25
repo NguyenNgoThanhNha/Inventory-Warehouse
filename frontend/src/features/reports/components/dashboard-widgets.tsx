@@ -54,7 +54,7 @@ export function Kpi({
               {value}
             </div>
           )}
-          {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
+          {hint && <div className="truncate text-xs text-muted-foreground">{hint}</div>}
         </div>
         <div className="rounded-lg bg-muted p-2 text-muted-foreground [&_svg]:size-5">{icon}</div>
       </CardContent>
@@ -155,6 +155,21 @@ export function ValueBreakdown({
   );
 }
 
+/** Two lines: name (truncated, full text on hover), then SKU · extra in small print. */
+function ItemName({ sku, name, extra }: { sku: string; name: string; extra?: string }) {
+  return (
+    <span className="block min-w-0">
+      <span className="block truncate font-medium" title={name}>
+        {name}
+      </span>
+      <span className="block truncate text-xs text-muted-foreground">
+        <span className="font-mono">{sku}</span>
+        {extra && <> · {extra}</>}
+      </span>
+    </span>
+  );
+}
+
 export function LowStockList({ rows, loading }: { rows: DashboardDto['topLowStock'] | undefined; loading: boolean }) {
   return (
     <Card>
@@ -172,7 +187,7 @@ export function LowStockList({ rows, loading }: { rows: DashboardDto['topLowStoc
             {rows.map((r) => (
               <li key={`${r.productId}-${r.warehouseId}`} className="flex items-center gap-3 py-2 text-sm">
                 <Link to={`/kardex?productId=${r.productId}&warehouseId=${r.warehouseId}`} className="min-w-0 flex-1 hover:underline">
-                  <span className="font-mono text-xs text-muted-foreground">{r.sku}</span> <span className="font-medium">{r.name}</span>
+                  <ItemName sku={r.sku} name={r.name} />
                 </Link>
                 <Badge variant="outline">{r.warehouseCode}</Badge>
                 <span className="w-24 shrink-0 text-right tabular-nums">
@@ -213,11 +228,8 @@ export function SlowMovingList({
             {rows.map((r) => (
               <li key={r.productId} className="flex items-center gap-3 py-2 text-sm">
                 <Link to={`/kardex?productId=${r.productId}`} className="min-w-0 flex-1 hover:underline">
-                  <span className="font-mono text-xs text-muted-foreground">{r.sku}</span> <span className="font-medium">{r.name}</span>
+                  <ItemName sku={r.sku} name={r.name} extra={r.lastOutAt ? `xuất lần cuối ${formatDate(r.lastOutAt)}` : 'chưa từng xuất'} />
                 </Link>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {r.lastOutAt ? `xuất lần cuối ${formatDate(r.lastOutAt)}` : 'chưa từng xuất'}
-                </span>
                 <span className="w-20 shrink-0 text-right font-medium tabular-nums">{formatCompactMoney(r.value)}</span>
               </li>
             ))}

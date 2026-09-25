@@ -292,11 +292,16 @@ export interface StockRowDto {
   warehouses: StockCellDto[];
 }
 
+/** Server-side order of the stock table / export; "Total" = sum over the filtered warehouses. */
+export type StockSort = 'Sku' | 'Name' | 'TotalDesc' | 'TotalAsc';
+
 export interface StockQuery {
   warehouseId?: number;
   groupId?: number;
   search?: string;
   belowThreshold?: boolean;
+  /** omitted = by SKU */
+  sort?: StockSort;
   pageSize?: number;
 }
 

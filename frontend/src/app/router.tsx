@@ -3,12 +3,16 @@ import { createBrowserRouter, type RouteObject } from 'react-router-dom';
 import { AppLayout } from '@/layouts/app-layout';
 import { AuthLayout } from '@/layouts/auth-layout';
 import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from '@/features/auth';
-import { DOCUMENT_TYPE_LIST, DocumentDetailPage, DocumentEditPage, DocumentFormPage, DocumentListPage } from '@/features/documents';
-import { StockPage } from '@/features/stock';
+import { DOCUMENT_TYPE_LIST } from '@/lib/document-types';
 import { PERMISSIONS } from '@/lib/permissions';
 import { HomeRedirect, NotFound, PermissionRoute, ProtectedRoute, PublicOnlyRoute } from './route-guards';
 
-// Heavier pages (recharts on the dashboard) and admin-only pages are code-split.
+// Every page is code-split: the entry chunk only holds the shell (layout, auth, router). Feature code loads on first visit.
+const StockPage = lazy(() => import('@/features/stock').then((m) => ({ default: m.StockPage })));
+const DocumentListPage = lazy(() => import('@/features/documents').then((m) => ({ default: m.DocumentListPage })));
+const DocumentDetailPage = lazy(() => import('@/features/documents').then((m) => ({ default: m.DocumentDetailPage })));
+const DocumentFormPage = lazy(() => import('@/features/documents').then((m) => ({ default: m.DocumentFormPage })));
+const DocumentEditPage = lazy(() => import('@/features/documents').then((m) => ({ default: m.DocumentEditPage })));
 const CatalogPage = lazy(() => import('@/features/catalog').then((m) => ({ default: m.CatalogPage })));
 const SettingsPage = lazy(() => import('@/features/settings').then((m) => ({ default: m.SettingsPage })));
 const DashboardPage = lazy(() => import('@/features/reports').then((m) => ({ default: m.DashboardPage })));

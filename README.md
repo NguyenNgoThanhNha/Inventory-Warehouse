@@ -15,7 +15,7 @@ Trọng tâm: **tồn kho không bao giờ sai hoặc âm khi nhiều người t
 | 5 | FE: bảng tồn kho lớn (virtualized, server-side), form phiếu, danh mục | ✅ |
 | 6 | Kardex (SP + window function) + dashboard (SP, 6 bảng) + cache Redis | ✅ |
 | 7 | Import/Export Excel theo lô (báo lỗi từng dòng) + job cảnh báo tồn thấp | ✅ |
-| 8 | Idempotency-Key; sửa phiếu nháp; test (BE 48 unit + 21 integration trên SQL thật, FE 65) | ✅ |
+| 8 | Idempotency-Key; sửa phiếu nháp; test (hiện tại: BE 48 unit + 23 integration trên SQL thật, FE 69) | ✅ |
 | 9 | Docker compose dev + prod, CI, CD (GHCR + SSH), sơ đồ kiến trúc | ✅ |
 | 9 | Deploy live | ⏳ cần máy chủ + repo GitHub (xem [Deploy](#deploy)) |
 
@@ -60,14 +60,18 @@ FE: http://localhost:5174 (Vite proxy `/api` → `:5090`). Chạy toàn bộ b�
 
 | Màn | Điểm chính |
 |---|---|
-| Tồn kho `/stock` | Bảng **virtualized**, cuộn tới đâu tải thêm trang tới đó (infinite query, server trả 100 dòng mỗi trang). Mỗi kho một cột; dòng dưới ngưỡng tô đỏ; bấm ô số lượng để đặt ngưỡng (cần WAREHOUSE:U). Bộ lọc lưu trên URL. |
+| Tồn kho `/stock` | Bảng **virtualized**, cuộn tới đâu tải thêm trang tới đó (infinite query, server trả 100 dòng mỗi trang). Cột "Sản phẩm" **cố định bên trái** khi cuộn ngang qua nhiều kho, cột Tổng đứng ngay sau. Trên mobile mỗi sản phẩm là một thẻ (tổng bên phải, các kho dạng chip). Dòng dưới ngưỡng tô đỏ; bấm ô số lượng để đặt ngưỡng (cần WAREHOUSE:U). **Sắp xếp phía server** theo SKU, tên, tồn nhiều nhất hoặc ít nhất (bấm tiêu đề "Sản phẩm" / "Tổng", hoặc ô "Sắp xếp" trên mobile); file Excel xuất ra cùng thứ tự. Bộ lọc và thứ tự lưu trên URL, có nút "Xóa lọc". |
 | Lập phiếu `/<loại>/new` | Một form dùng cho 4 loại phiếu. Mỗi dòng hiện **tồn hiện tại**; vượt tồn thì tô đỏ và khóa nút “Ghi sổ”. Lỗi 409 kèm `shortages` từ server được gắn về đúng dòng. Mỗi phiên form dùng một `Idempotency-Key`, nên bấm hai lần hay gửi lại vẫn chỉ tạo một phiếu. |
+| Nhập liệu nhanh (form phiếu) | Ô **"Quét mã / nhập SKU rồi Enter"**: máy quét mã vạch hoạt động như bàn phím, quét mã mới thì thêm dòng, quét lại mã cũ thì tăng số lượng. Chọn sản phẩm xong thì con trỏ nhảy sang ô số lượng; Enter ở ô số lượng thì quay về ô quét. Form **nhớ kho** dùng lần trước (theo từng loại phiếu). Rời trang khi chưa lưu sẽ có hộp thoại xác nhận (và cảnh báo khi đóng tab). Trên mobile mỗi dòng hàng là một thẻ, không phải cuộn ngang. |
+| Sửa phiếu nháp `/<loại>/:id/edit` | Dùng lại form lập phiếu với dữ liệu sẵn có. Chỉ hiện nút "Sửa" cho chủ phiếu hoặc người có quyền duyệt. |
 | Chi tiết phiếu `/<loại>/:id` | Ghi sổ hoặc hủy phiếu nháp, gửi kèm `rowVersion`. Phiếu kiểm kê hiện tồn sổ sách và chênh lệch. |
 | Danh mục `/catalog` | Sản phẩm (tìm phía server), nhóm hàng, kho, nhà cung cấp. |
 | Tổng quan `/dashboard` | KPI (giá trị tồn, mã còn hàng, dòng dưới ngưỡng, phiếu nháp, phiếu ghi sổ hôm nay), biểu đồ nhập–xuất 30 ngày, giá trị tồn theo kho / nhóm, hàng sắp hết, hàng chậm luân chuyển. Lọc theo kho. |
 | Thẻ kho `/kardex` | Sổ nhập – xuất – tồn một sản phẩm: tồn đầu kỳ, từng chứng từ (link sang phiếu), tồn cuối lũy kế, phân trang. Mở từ SKU ở bảng tồn hoặc từ dashboard. |
 
-**Dữ liệu lớn:** `Database:SeedBulkProducts` (Development = 12000) seed thêm 12.000 mã, kèm phiếu nhập tồn đầu kỳ đi qua StockLedger. Đo trên 12.018 mã sau khi warm-up: `GET /stock` với mọi kiểu lọc (trang 1, trang 100, theo kho, theo nhóm, dưới ngưỡng, tìm SKU) đều mất 15–70 ms, nên chưa cần stored procedure (RULES 3.11). Trên trình duyệt: đã tải 1.600 dòng nhưng DOM chỉ giữ khoảng 40 dòng.
+**Dữ liệu lớn:** `Database:SeedBulkProducts` (Development = 12000) seed thêm 12.000 mã, kèm phiếu nhập tồn đầu kỳ đi qua StockLedger. Đo trên 12.018 mã sau khi warm-up: `GET /stock` với mọi kiểu lọc (trang 1, trang 100, theo kho, theo nhóm, dưới ngưỡng, tìm SKU) đều mất 15–70 ms, nên chưa cần stored procedure (RULES 3.11). Sắp theo tổng tồn (tổng các kho đang lọc, tính trong SQL) mất khoảng 29 ms trên 22k mã. Đếm tổng số dòng chỉ mất khoảng 10 ms, nên các trang sau vẫn đếm lại thay vì đổi định dạng phân trang dùng chung. Trên trình duyệt: đã tải 1.600 dòng nhưng DOM chỉ giữ khoảng 40 dòng.
+
+**Tải trang:** mọi trang đều lazy-load; chunk vào chỉ còn phần khung (layout, đăng nhập, router): 81 KB gzip, trước đó 116 KB (−30%).
 
 ## Test
 
@@ -124,7 +128,7 @@ Controller [HasPermission GOODS_ISSUE:C]
   - Đo 10.000 dòng (có 10 dòng lỗi): kiểm tra 1,65 s; tạo mới 9.990 mã 6,7 s (lần gọi đầu, gồm cả khởi động); import lại (toàn cập nhật) 2,9 s. Giới hạn 20.000 dòng / 5 MB.
   - Tiêu đề cột so khớp không phân biệt hoa thường và dấu. Ô số được lấy đúng giá trị số. Ô chữ đọc theo thói quen Việt Nam: `35.000` là 35 nghìn, `1,5` là một phẩy năm.
 - **Nhập dòng phiếu từ Excel** (nút trong form lập phiếu): chỉ đọc file, tra sản phẩm và báo dòng lỗi, không ghi gì. Các dòng hợp lệ được đổ vào form; sản phẩm đã có sẵn trong phiếu thì bỏ qua và báo lại.
-- **Export**: tồn kho (dùng đúng bộ lọc của màn Tồn kho, qua `StockSearch`) và thẻ kho, thời gian ghi theo giờ địa phương. Tối đa 100.000 dòng mỗi file. Đo: xuất 22k dòng tồn mất 1,7 s.
+- **Export**: tồn kho (dùng đúng bộ lọc và thứ tự của màn Tồn kho, qua `StockSearch`) và thẻ kho, thời gian ghi theo giờ địa phương. Tối đa 100.000 dòng mỗi file. Đo: xuất 22k dòng tồn mất 1,7 s.
 - **Cảnh báo tồn thấp**: `LowStockAlertService` (BackgroundService) quét mỗi `StockAlerts:ScanIntervalSeconds` (mặc định 300 s).
   - Tồn xuống dưới ngưỡng → mở `StockAlert`; tồn hồi lại hoặc ngưỡng bị bỏ → đóng.
   - Mỗi (sản phẩm, kho) có tối đa một cảnh báo đang mở, nhờ unique filtered index. Nhờ vậy nhiều instance cùng chạy job cũng không sinh cảnh báo trùng.
@@ -162,7 +166,7 @@ Production: `MigrateOnStartup=true`, dữ liệu demo tắt (`SEED_DEMO_DATA=fal
 
 | Method | Route | Quyền |
 |---|---|---|
-| GET | `/api/v1/stock?warehouseId=&groupId=&search=&belowThreshold=&page=&pageSize=` | STOCK_REPORT:R |
+| GET | `/api/v1/stock?warehouseId=&groupId=&search=&belowThreshold=&sort=Sku\|Name\|TotalDesc\|TotalAsc&page=&pageSize=` | STOCK_REPORT:R |
 | GET | `/api/v1/stock/available?warehouseId=&productIds=` | STOCK_REPORT:R |
 | GET | `/api/v1/reports/dashboard?warehouseId=` | STOCK_REPORT:R |
 | GET | `/api/v1/reports/kardex?productId=&warehouseId=&from=&to=&page=&pageSize=` | STOCK_REPORT:R |

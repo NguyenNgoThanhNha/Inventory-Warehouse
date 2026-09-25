@@ -96,11 +96,29 @@ public sealed class StockLedger(IUnitOfWork<InventoryDbContext> unitOfWork, IAud
     }
 }
 
+/// <summary>Thứ tự của màn Tồn kho / file xuất. Tổng = tổng tồn các kho đang lọc.</summary>
+public enum StockSort
+{
+    Sku = 1,
+    Name = 2,
+    TotalDesc = 3,
+    TotalAsc = 4
+}
+
 /// <summary>
-/// Bộ lọc dùng chung cho màn Tồn kho và file Excel xuất tồn kho — hai nơi phải ra đúng cùng một tập sản phẩm.
+/// Bộ lọc + thứ tự dùng chung cho màn Tồn kho và file Excel xuất tồn kho — hai nơi phải ra đúng cùng một tập sản phẩm, cùng thứ tự.
 /// </summary>
 public static class StockSearch
 {
+    /// <summary>Luôn chốt bằng SKU (duy nhất) để phân trang ổn định khi nhiều sản phẩm trùng tên / trùng tổng.</summary>
+    public static IOrderedQueryable<Product> Order(IQueryable<Product> products, IQueryable<StockLevel> levels, StockSort sort) => sort switch
+    {
+        StockSort.Name => products.OrderBy(p => p.Name).ThenBy(p => p.Sku),
+        StockSort.TotalDesc => products.OrderByDescending(p => levels.Where(s => s.ProductId == p.Id).Sum(s => s.Quantity)).ThenBy(p => p.Sku),
+        StockSort.TotalAsc => products.OrderBy(p => levels.Where(s => s.ProductId == p.Id).Sum(s => s.Quantity)).ThenBy(p => p.Sku),
+        _ => products.OrderBy(p => p.Sku)
+    };
+
     public static (IQueryable<Product> Products, IQueryable<StockLevel> Levels) Build(
         IUnitOfWork<InventoryDbContext> unitOfWork, int? warehouseId, int? groupId, string? search, bool belowThreshold)
     {

@@ -2,16 +2,15 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Loader2, Pencil, Plus, Search } from 'lucide-react';
+import { Loader2, Pencil, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Form } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
 import { DataTable } from '@/components/common/data-table';
+import { SearchInput } from '@/components/common/search-input';
 import { TextFormField } from '@/components/common/form-fields';
 import { applyFieldErrors, showError } from '@/lib/api-errors';
-import { useDebouncedCallback } from '@/lib/hooks/use-debounced-callback';
 import { useCan } from '@/stores/auth-store';
 import type { SupplierDto } from '@/types';
 import { useSaveSupplier, useSuppliers } from '../hooks/use-catalog';
@@ -82,10 +81,6 @@ function SupplierDialog({
 export function SuppliersTab() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const debounced = useDebouncedCallback((v: string) => {
-    setSearch(v);
-    setPage(1);
-  });
   const { data, isFetching } = useSuppliers({ search, page, pageSize: 20 });
   const canCreate = useCan('SUPPLIER', 'C');
   const canUpdate = useCan('SUPPLIER', 'U');
@@ -112,10 +107,15 @@ export function SuppliersTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative w-full max-w-xs">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input aria-label="Tìm nhà cung cấp" placeholder="Tên hoặc số điện thoại..." className="pl-8" onChange={(e) => debounced.run(e.target.value)} />
-        </div>
+        <SearchInput
+          aria-label="Tìm nhà cung cấp"
+          placeholder="Tên hoặc số điện thoại..."
+          value={search}
+          onChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+        />
         {canCreate && (
           <Button className="ml-auto" onClick={() => setDialog({ open: true, supplier: null })}>
             <Plus /> Thêm nhà cung cấp

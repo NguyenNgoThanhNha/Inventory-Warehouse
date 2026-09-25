@@ -85,8 +85,8 @@ describe('DashboardPage', () => {
 
     expect(await screen.findByText('2,4 tỷ')).toBeInTheDocument();
     expect(screen.getByText('37').closest('a')).toHaveAttribute('href', '/stock?belowThreshold=true');
-    expect(screen.getByRole('link', { name: /P002 Bản lề inox/ })).toHaveAttribute('href', '/kardex?productId=2&warehouseId=1');
-    expect(screen.getByText('chưa từng xuất')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Bản lề inox/ })).toHaveAttribute('href', '/kardex?productId=2&warehouseId=1');
+    expect(screen.getByText(/chưa từng xuất/)).toBeInTheDocument();
     expect(screen.getByText(/Số liệu lúc/)).toBeInTheDocument();
   });
 });

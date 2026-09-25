@@ -30,7 +30,7 @@ public sealed class InventoryApiFactory : WebApplicationFactory<Program>, IAsync
         }
         else
         {
-            _container = new MsSqlBuilder().WithImage("mcr.microsoft.com/mssql/server:2022-latest").Build();
+            _container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
             await _container.StartAsync();
             _connectionString = new SqlConnectionStringBuilder(_container.GetConnectionString()) { InitialCatalog = "InventoryTest" }.ConnectionString;
         }

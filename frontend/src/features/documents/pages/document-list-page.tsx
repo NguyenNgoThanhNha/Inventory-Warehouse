@@ -1,17 +1,16 @@
 import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DataTable } from '@/components/common/data-table';
 import { PageHeader } from '@/components/common/page-header';
+import { SearchInput } from '@/components/common/search-input';
 import { useWarehouses } from '@/features/catalog';
 import { formatDateTimeShort } from '@/lib/date';
 import { formatQty } from '@/lib/format';
-import { useDebouncedCallback } from '@/lib/hooks/use-debounced-callback';
 import { oneOf, toPositiveInt, useUrlParams } from '@/lib/hooks/use-url-params';
 import { useCan } from '@/stores/auth-store';
 import { DOCUMENT_STATUSES, type DocumentType, type StockDocumentListItemDto } from '@/types';
@@ -35,7 +34,6 @@ export function DocumentListPage({ type }: { type: DocumentType }) {
   const { data, isFetching, isError, refetch } = useDocuments(cfg, query);
   const { data: warehouses = [] } = useWarehouses();
   const canCreate = useCan(cfg.activity, 'C');
-  const debouncedSearch = useDebouncedCallback((v: string) => update({ search: v.trim() }));
 
   const columns = useMemo<ColumnDef<StockDocumentListItemDto>[]>(
     () => [
@@ -96,19 +94,10 @@ export function DocumentListPage({ type }: { type: DocumentType }) {
       />
       <Card>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative w-full max-w-xs">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                aria-label="Tìm mã phiếu"
-                placeholder="Mã phiếu..."
-                className="pl-8"
-                defaultValue={query.search}
-                onChange={(e) => debouncedSearch.run(e.target.value)}
-              />
-            </div>
+          <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
+            <SearchInput className="col-span-2" aria-label="Tìm mã phiếu" placeholder="Mã phiếu..." value={query.search ?? ''} onChange={(v) => update({ search: v })} />
             <Select value={query.status ?? ALL} onValueChange={(v) => update({ status: v === ALL ? undefined : v })}>
-              <SelectTrigger aria-label="Trạng thái" className="w-40">
+              <SelectTrigger aria-label="Trạng thái" className="w-full sm:w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -121,7 +110,7 @@ export function DocumentListPage({ type }: { type: DocumentType }) {
               </SelectContent>
             </Select>
             <Select value={query.warehouseId ? String(query.warehouseId) : ALL} onValueChange={(v) => update({ warehouseId: v === ALL ? undefined : v })}>
-              <SelectTrigger aria-label="Kho" className="w-52">
+              <SelectTrigger aria-label="Kho" className="w-full sm:w-52">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

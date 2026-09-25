@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ChevronsUpDown, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,8 @@ export function ProductPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  // after a pick the caller moves focus (e.g. to the quantity) — do not pull it back to the trigger
+  const picked = useRef(false);
   const debounced = useDebouncedCallback(setSearch, 250);
   const { data, isFetching } = useProducts({ search, isActive: true, page: 1, pageSize: 20 }, open);
 
@@ -48,7 +50,14 @@ export function ProductPicker({
           {isFetching && open ? <Loader2 className="animate-spin" /> : <ChevronsUpDown className="opacity-50" />}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-(--radix-popover-trigger-width) min-w-80 p-0" align="start">
+      <PopoverContent
+        className="w-(--radix-popover-trigger-width) min-w-80 p-0"
+        align="start"
+        onCloseAutoFocus={(e) => {
+          if (picked.current) e.preventDefault();
+          picked.current = false;
+        }}
+      >
         <Command shouldFilter={false}>
           <CommandInput placeholder="Gõ SKU hoặc tên..." onValueChange={(v) => debounced.run(v)} />
           <CommandList>
@@ -61,6 +70,7 @@ export function ProductPicker({
                   disabled={excludeIds.includes(p.id) && p.id !== value?.id}
                   data-checked={p.id === value?.id}
                   onSelect={() => {
+                    picked.current = true;
                     onChange({ id: p.id, sku: p.sku, name: p.name, unit: p.unit, cost: p.cost });
                     setOpen(false);
                   }}

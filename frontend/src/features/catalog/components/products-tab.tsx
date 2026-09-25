@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { FileUp, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { FileUp, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ConfirmDialog } from '@/components/common/confirm-dialog';
 import { DataTable } from '@/components/common/data-table';
-import { useDebouncedCallback } from '@/lib/hooks/use-debounced-callback';
+import { SearchInput } from '@/components/common/search-input';
 import { formatMoney } from '@/lib/format';
 import { useCan } from '@/stores/auth-store';
 import type { ProductDto } from '@/types';
@@ -23,10 +22,6 @@ export function ProductsTab() {
   const [groupId, setGroupId] = useState<number | undefined>();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const debounced = useDebouncedCallback((v: string) => {
-    setSearch(v);
-    setPage(1);
-  });
 
   const { data, isFetching, isError, refetch } = useProducts({ search, groupId, page, pageSize });
   const { data: groups = [] } = useProductGroups();
@@ -90,10 +85,15 @@ export function ProductsTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative w-full max-w-xs">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input aria-label="Tìm sản phẩm" placeholder="SKU hoặc tên..." className="pl-8" onChange={(e) => debounced.run(e.target.value)} />
-        </div>
+        <SearchInput
+          aria-label="Tìm sản phẩm"
+          placeholder="SKU hoặc tên..."
+          value={search}
+          onChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+        />
         <Select
           value={groupId ? String(groupId) : ALL}
           onValueChange={(v) => {

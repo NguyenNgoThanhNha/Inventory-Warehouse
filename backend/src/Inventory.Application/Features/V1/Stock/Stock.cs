@@ -33,6 +33,9 @@ namespace Inventory.Application.Features.V1.Stock.Queries
 
         /// <summary>Chỉ sản phẩm có ít nhất một kho dưới ngưỡng tối thiểu.</summary>
         public bool BelowThreshold { get; init; }
+
+        /// <summary><c>?sort=TotalDesc</c> — mặc định theo SKU.</summary>
+        public StockSort Sort { get; init; } = StockSort.Sku;
     }
 
     public sealed class SearchStockQueryHandler(IUnitOfWork<InventoryDbContext> unitOfWork)
@@ -43,7 +46,7 @@ namespace Inventory.Application.Features.V1.Stock.Queries
             var (products, levels) = StockSearch.Build(unitOfWork, request.WarehouseId, request.GroupId, request.Search, request.BelowThreshold);
 
             var total = await products.CountAsync(ct);
-            var page = await products.OrderBy(p => p.Sku)
+            var page = await StockSearch.Order(products, levels, request.Sort)
                 .Skip((request.SafePage - 1) * request.SafePageSize).Take(request.SafePageSize)
                 .Select(p => new { p.Id, p.Sku, p.Name, p.Unit, GroupName = p.Group.Name })
                 .ToListAsync(ct);

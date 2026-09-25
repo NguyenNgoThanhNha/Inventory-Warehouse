@@ -5,6 +5,7 @@ using Inventory.Application.Features.V1.Exports.Queries;
 using Inventory.Application.Features.V1.Imports.Commands.ImportProducts;
 using Inventory.Application.Features.V1.Imports.DTOs;
 using Inventory.Application.Features.V1.Imports.Queries;
+using Inventory.Application.Features.V1.Stock.Services;
 using Inventory.Application.Features.V1.StockAlerts.Commands.ScanLowStock;
 using Inventory.Application.Features.V1.StockAlerts.DTOs;
 using Inventory.Application.Features.V1.StockAlerts.Queries;
@@ -61,11 +62,11 @@ public sealed class ImportsController(ISender mediator) : ApiControllerBase(medi
 [HasPermission(ConstActivity.StockReport, ActivityType.Read)]
 public sealed class ExportsController(ISender mediator) : ApiControllerBase(mediator)
 {
-    /// <summary>Tồn kho ra Excel, cùng bộ lọc với <c>GET /stock</c>.</summary>
+    /// <summary>Tồn kho ra Excel, cùng bộ lọc và thứ tự với <c>GET /stock</c>.</summary>
     [HttpGet("stock")]
     public async Task<IActionResult> Stock([FromQuery] int? warehouseId, [FromQuery] int? groupId, [FromQuery] string? search,
-        [FromQuery] bool belowThreshold, CancellationToken ct) =>
-        Download(await Mediator.Send(new ExportStockQuery(warehouseId, groupId, search, belowThreshold), ct));
+        [FromQuery] bool belowThreshold, [FromQuery] StockSort sort = StockSort.Sku, CancellationToken ct = default) =>
+        Download(await Mediator.Send(new ExportStockQuery(warehouseId, groupId, search, belowThreshold, sort), ct));
 
     [HttpGet("kardex")]
     public async Task<IActionResult> Kardex([FromQuery] int productId, [FromQuery] int? warehouseId, [FromQuery] DateOnly? from,
