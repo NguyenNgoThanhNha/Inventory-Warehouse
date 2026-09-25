@@ -15,6 +15,18 @@ public static class ConstMessage
 public static class ConstCacheKey
 {
     public static string UserPermission(Guid userId, long version) => $"perm:{version}:{userId:N}";
+
+    /// <summary>Token phiên bản của cache danh mục (đổi token = vô hiệu toàn bộ).</summary>
+    public const string CatalogVersion = "catalog:version";
+
+    public static string Catalog(string version, string name) => $"catalog:{version}:{name}";
+
+    public const string ProductGroups = "product-groups";
+
+    public static string Warehouses(bool includeInactive) => $"warehouses:{(includeInactive ? "all" : "active")}";
+
+    public static string ProductSearch(string? search, int? groupId, bool? isActive, int page, int pageSize) =>
+        $"products:{search?.Trim().ToLowerInvariant()}|{groupId}|{isActive}|{page}|{pageSize}";
 }
 
 /// <summary>Tiền tố mã chứng từ: PN-2026-00001, PX-..., CK-..., KK-...</summary>

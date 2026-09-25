@@ -39,10 +39,20 @@ namespace Inventory.Application.Features.V1.Products.Queries
         public bool? IsActive { get; init; }
     }
 
-    public sealed class SearchProductsQueryHandler(IUnitOfWork<InventoryDbContext> unitOfWork)
+    public sealed class SearchProductsQueryHandler(IUnitOfWork<InventoryDbContext> unitOfWork, ICatalogCache cache)
         : IRequestHandler<SearchProductsQuery, PagedResult<ProductDto>>
     {
-        public async Task<PagedResult<ProductDto>> Handle(SearchProductsQuery request, CancellationToken ct)
+        /// <summary>Từ khóa dài bất thường không đáng giữ trong cache (và làm key phình to).</summary>
+        private const int MaxCachedSearchLength = 50;
+
+        public Task<PagedResult<ProductDto>> Handle(SearchProductsQuery request, CancellationToken ct)
+        {
+            if (request.Search?.Length > MaxCachedSearchLength) return SearchAsync(request, ct);
+            var key = ConstCacheKey.ProductSearch(request.Search, request.GroupId, request.IsActive, request.SafePage, request.SafePageSize);
+            return cache.GetOrSetAsync(key, c => SearchAsync(request, c), ct);
+        }
+
+        private async Task<PagedResult<ProductDto>> SearchAsync(SearchProductsQuery request, CancellationToken ct)
         {
             var query = unitOfWork.Repository<Product>().AsNoTracking();
             if (!string.IsNullOrWhiteSpace(request.Search))
@@ -68,12 +78,12 @@ namespace Inventory.Application.Features.V1.Products.Queries
 
     public sealed record GetProductGroupsQuery : IRequest<IReadOnlyList<ProductGroupDto>>;
 
-    public sealed class GetProductGroupsQueryHandler(IUnitOfWork<InventoryDbContext> unitOfWork)
+    public sealed class GetProductGroupsQueryHandler(IUnitOfWork<InventoryDbContext> unitOfWork, ICatalogCache cache)
         : IRequestHandler<GetProductGroupsQuery, IReadOnlyList<ProductGroupDto>>
     {
-        public async Task<IReadOnlyList<ProductGroupDto>> Handle(GetProductGroupsQuery request, CancellationToken ct) =>
-            await unitOfWork.Repository<ProductGroup>().AsNoTracking().OrderBy(g => g.Name)
-                .Select(g => new ProductGroupDto(g.Id, g.Name)).ToListAsync(ct);
+        public Task<IReadOnlyList<ProductGroupDto>> Handle(GetProductGroupsQuery request, CancellationToken ct) =>
+            cache.GetOrSetAsync<IReadOnlyList<ProductGroupDto>>(ConstCacheKey.ProductGroups, async c => await unitOfWork.Repository<ProductGroup>().AsNoTracking().OrderBy(g => g.Name)
+                .Select(g => new ProductGroupDto(g.Id, g.Name)).ToListAsync(c), ct);
     }
 }
 
@@ -119,7 +129,7 @@ namespace Inventory.Application.Features.V1.Products.Commands
         }
     }
 
-    public sealed class SaveProductCommandHandler(IUnitOfWork<InventoryDbContext> unitOfWork) : IRequestHandler<SaveProductCommand, ProductDto>
+    public sealed class SaveProductCommandHandler(IUnitOfWork<InventoryDbContext> unitOfWork, ICatalogCache cache) : IRequestHandler<SaveProductCommand, ProductDto>
     {
         public async Task<ProductDto> Handle(SaveProductCommand request, CancellationToken ct)
         {
@@ -137,6 +147,7 @@ namespace Inventory.Application.Features.V1.Products.Commands
             }
 
             await unitOfWork.SaveChangesAsync(ct);
+            await cache.InvalidateAsync(ct);
             return await ProductReader.GetAsync(unitOfWork, product.Id, ct);
         }
     }
@@ -144,7 +155,7 @@ namespace Inventory.Application.Features.V1.Products.Commands
     /// <summary>Xóa mềm. Sản phẩm đã phát sinh chứng từ thì không xóa được — chuyển sang ngừng kinh doanh.</summary>
     public sealed record DeleteProductCommand(int Id) : IRequest;
 
-    public sealed class DeleteProductCommandHandler(IUnitOfWork<InventoryDbContext> unitOfWork) : IRequestHandler<DeleteProductCommand>
+    public sealed class DeleteProductCommandHandler(IUnitOfWork<InventoryDbContext> unitOfWork, ICatalogCache cache) : IRequestHandler<DeleteProductCommand>
     {
         public async Task Handle(DeleteProductCommand request, CancellationToken ct)
         {
@@ -156,6 +167,7 @@ namespace Inventory.Application.Features.V1.Products.Commands
 
             unitOfWork.Repository<Product>().Remove(product);
             await unitOfWork.SaveChangesAsync(ct);
+            await cache.InvalidateAsync(ct);
         }
     }
 
@@ -177,7 +189,7 @@ namespace Inventory.Application.Features.V1.Products.Commands
         }
     }
 
-    public sealed class SaveProductGroupCommandHandler(IUnitOfWork<InventoryDbContext> unitOfWork)
+    public sealed class SaveProductGroupCommandHandler(IUnitOfWork<InventoryDbContext> unitOfWork, ICatalogCache cache)
         : IRequestHandler<SaveProductGroupCommand, ProductGroupDto>
     {
         public async Task<ProductGroupDto> Handle(SaveProductGroupCommand request, CancellationToken ct)
@@ -196,6 +208,7 @@ namespace Inventory.Application.Features.V1.Products.Commands
             }
 
             await unitOfWork.SaveChangesAsync(ct);
+            await cache.InvalidateAsync(ct);
             return new ProductGroupDto(group.Id, group.Name);
         }
     }

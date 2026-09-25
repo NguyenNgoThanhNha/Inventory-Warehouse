@@ -1,5 +1,8 @@
 using Inventory.Api.Authorization;
 using Inventory.Application.Common.Models;
+using Inventory.Application.Features.V1.Reports.DTOs;
+using Inventory.Application.Features.V1.Reports.Queries.GetDashboard;
+using Inventory.Application.Features.V1.Reports.Queries.GetKardex;
 using Inventory.Application.Features.V1.Stock.Commands;
 using Inventory.Application.Features.V1.Stock.DTOs;
 using Inventory.Application.Features.V1.Stock.Queries;
@@ -169,4 +172,19 @@ public sealed class StockTakesController(ISender mediator) : ApiControllerBase(m
     [HasPermission(ConstActivity.StockTake, ActivityType.Delete)]
     public async Task<ActionResult<StockDocumentDto>> Cancel(int id, CancelStockDocumentCommand command, CancellationToken ct) =>
         Ok(await Mediator.Send(command with { Id = id, Type = Type }, ct));
+}
+
+[Route("api/v1/reports")]
+[HasPermission(ConstActivity.StockReport, ActivityType.Read)]
+public sealed class ReportsController(ISender mediator) : ApiControllerBase(mediator)
+{
+    /// <summary>Tổng quan kho: KPI, giá trị tồn theo kho/nhóm, hàng sắp hết, nhập–xuất 30 ngày, hàng chậm luân chuyển.</summary>
+    [HttpGet("dashboard")]
+    public async Task<ActionResult<DashboardDto>> Dashboard([FromQuery] int? warehouseId, CancellationToken ct) =>
+        Ok(await Mediator.Send(new GetDashboardQuery(warehouseId), ct));
+
+    /// <summary>Sổ nhập – xuất – tồn: <c>?productId=&amp;warehouseId=&amp;from=yyyy-MM-dd&amp;to=yyyy-MM-dd&amp;page=&amp;pageSize=</c>.</summary>
+    [HttpGet("kardex")]
+    public async Task<ActionResult<KardexDto>> Kardex([FromQuery] GetKardexQuery query, CancellationToken ct) =>
+        Ok(await Mediator.Send(query, ct));
 }

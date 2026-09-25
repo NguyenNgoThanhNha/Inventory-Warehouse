@@ -11,10 +11,13 @@ namespace Inventory.Application.Features.V1.Warehouses.Queries
     /// <summary>Số kho ít (vài chục) nên trả hết, không phân trang.</summary>
     public sealed record GetWarehousesQuery(bool IncludeInactive = false) : IRequest<IReadOnlyList<WarehouseDto>>;
 
-    public sealed class GetWarehousesQueryHandler(IUnitOfWork<InventoryDbContext> unitOfWork)
+    public sealed class GetWarehousesQueryHandler(IUnitOfWork<InventoryDbContext> unitOfWork, ICatalogCache cache)
         : IRequestHandler<GetWarehousesQuery, IReadOnlyList<WarehouseDto>>
     {
-        public async Task<IReadOnlyList<WarehouseDto>> Handle(GetWarehousesQuery request, CancellationToken ct)
+        public Task<IReadOnlyList<WarehouseDto>> Handle(GetWarehousesQuery request, CancellationToken ct) =>
+            cache.GetOrSetAsync(ConstCacheKey.Warehouses(request.IncludeInactive), c => LoadAsync(request, c), ct);
+
+        private async Task<IReadOnlyList<WarehouseDto>> LoadAsync(GetWarehousesQuery request, CancellationToken ct)
         {
             var query = unitOfWork.Repository<Warehouse>().AsNoTracking();
             if (!request.IncludeInactive) query = query.Where(w => w.IsActive);
@@ -60,7 +63,7 @@ namespace Inventory.Application.Features.V1.Warehouses.Commands
         }
     }
 
-    public sealed class SaveWarehouseCommandHandler(IUnitOfWork<InventoryDbContext> unitOfWork)
+    public sealed class SaveWarehouseCommandHandler(IUnitOfWork<InventoryDbContext> unitOfWork, ICatalogCache cache)
         : IRequestHandler<SaveWarehouseCommand, WarehouseDto>
     {
         public async Task<WarehouseDto> Handle(SaveWarehouseCommand request, CancellationToken ct)
@@ -84,6 +87,7 @@ namespace Inventory.Application.Features.V1.Warehouses.Commands
             }
 
             await unitOfWork.SaveChangesAsync(ct);
+            await cache.InvalidateAsync(ct);
             return new WarehouseDto(warehouse.Id, warehouse.Code, warehouse.Name, warehouse.Address, warehouse.IsActive);
         }
     }

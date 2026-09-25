@@ -1,5 +1,6 @@
 using FluentValidation;
 using Inventory.Application.Common.Behaviors;
+using Inventory.Application.Common.Caching;
 using Inventory.Application.Common.Models;
 using Inventory.Application.Features.V1.Auth.Services;
 using Inventory.Application.Features.V1.Stock.Services;
@@ -30,6 +31,8 @@ public static class DependencyInjection
 
         services.AddScoped<IAuthTokenIssuer, AuthTokenIssuer>();
         services.AddScoped<ICurrentUserDtoFactory, CurrentUserDtoFactory>();
+
+        services.AddScoped<ICatalogCache, CatalogCache>();
 
         // Kho: mọi thay đổi tồn đi qua IStockLedger.
         services.AddScoped<IStockLedger, StockLedger>();

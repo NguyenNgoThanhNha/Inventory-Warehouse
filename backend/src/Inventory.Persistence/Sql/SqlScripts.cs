@@ -6,6 +6,9 @@ namespace Inventory.Persistence.Sql;
 /// </summary>
 public static class SqlScripts
 {
+    public const string ReportKardex = "usp_Report_Kardex.sql";
+    public const string ReportDashboard = "usp_Report_Dashboard.sql";
+
     public static string Read(string fileName)
     {
         var assembly = typeof(SqlScripts).Assembly;

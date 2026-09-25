@@ -1,4 +1,5 @@
 using Inventory.Application.Common.Interfaces;
+using Inventory.Infrastructure.Caching;
 using Inventory.Infrastructure.Commons;
 using Inventory.Infrastructure.Logging;
 using Inventory.Infrastructure.Security;
@@ -9,6 +10,7 @@ using Inventory.Persistence.Interceptors;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using StackExchange.Redis;
 
 namespace Inventory.Infrastructure;
 
@@ -30,6 +32,27 @@ public static class DependencyInjection
         });
         services.AddScoped(typeof(IRepository<,>), typeof(Repository<,>));
         services.AddScoped(typeof(IUnitOfWork<>), typeof(UnitOfWork<>));
+
+        // --- Cache phân tán: Redis nếu có ConnectionStrings:Redis, không thì bộ nhớ trong tiến trình (dev / test) ---
+        var redis = configuration.GetConnectionString("Redis");
+        if (!string.IsNullOrWhiteSpace(redis))
+        {
+            services.AddStackExchangeRedisCache(o =>
+            {
+                var cfg = ConfigurationOptions.Parse(redis);
+                cfg.AbortOnConnectFail = false; // Redis chưa lên thì app vẫn chạy, cache tự nối lại sau
+                cfg.ConnectTimeout = 2000;
+                cfg.AsyncTimeout = 500;         // cache chậm hơn DB thì vô nghĩa — timeout ngắn rồi đọc DB
+                cfg.SyncTimeout = 500;
+                o.ConfigurationOptions = cfg;
+                o.InstanceName = "inventory:";
+            });
+        }
+        else
+        {
+            services.AddDistributedMemoryCache();
+        }
+        services.AddSingleton<ICacheService, DistributedCacheService>();
 
         // --- Security ---
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
